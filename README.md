@@ -1,2 +1,3 @@
-# deeplearning_utils
-deeplearning utils for (researches &amp; kaggle competitions)
+# Deep Learning utils
+deeplearning-utils for (researches & kaggle competitions).
+
