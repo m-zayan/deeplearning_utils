@@ -40,17 +40,17 @@ def save_as_npy(filename, *args):
 
 
 # noinspection PyTypeChecker
-def load_npy(filename):
+def load_npy(filename, allow_pickle=True):
 
     data = []
 
     with open(f'{filename}.npy', 'rb') as buffer:
 
-        info = np.load(buffer, allow_pickle=True)[0]
+        info = np.load(buffer, allow_pickle=allow_pickle)[0]
 
         for i in range(info['narr']):
 
-            data.append(np.load(buffer, allow_pickle=True))
+            data.append(np.load(buffer, allow_pickle=allow_pickle))
 
     return data
 
@@ -60,6 +60,6 @@ def save_as_npz(filename, **kwargs):
     np.savez(f'{filename}.npz', **kwargs)
 
 
-def load_npz(filename):
+def load_npz(filename, allow_pickle=True):
 
-    return np.load(f'{filename}.npz')
+    return np.load(f'{filename}.npz', allow_pickle=allow_pickle)
