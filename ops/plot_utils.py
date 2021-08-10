@@ -11,10 +11,10 @@ from .reshape_utils import images_to_grid, grid_ground_truth
 __all__ = ['plot_random', 'plot', 'plot_latent', 'grid_plot']
 
 
-def plot_random(x: np.ndarray, y: np.ndarray, nrows: int = 6, ncols: int = 18, figsize: tuple = None,
+def plot_random(x: np.ndarray, y: np.ndarray = None, nrows: int = 6, ncols: int = 18, figsize: tuple = None,
                 random_state: int = None):
 
-    if len(x) != len(y):
+    if y is not None and len(x) != len(y):
 
         raise ValueError('len(x) != len(y)')
 
@@ -35,19 +35,27 @@ def plot_random(x: np.ndarray, y: np.ndarray, nrows: int = 6, ncols: int = 18, f
     indices = random_indices(n, start=0, end=m, step=1, replace=False, random_state=random_state)
 
     images = x[indices, ..., 0]
-    labels = y[indices]
+    labels = None
+
+    if y is not None:
+
+        labels = y[indices]
 
     for i in range(len(axs)):
 
         axs[i].imshow(images[i])
-        axs[i].set_title(f'{labels[i]}')
+
+        if y is not None:
+
+            axs[i].set_title(f'{labels[i]}')
+
         axs[i].grid('off')
         axs[i].axis('off')
 
     return fig
 
 
-def plot(x: np.ndarray, y: np.ndarray, nrows: int = 6, ncols: int = 18, figsize: tuple = None):
+def plot(x: np.ndarray, y: np.ndarray = None, nrows: int = 6, ncols: int = 18, figsize: tuple = None):
 
     if figsize is None:
 
@@ -59,7 +67,11 @@ def plot(x: np.ndarray, y: np.ndarray, nrows: int = 6, ncols: int = 18, figsize:
     for i in range(len(axs)):
 
         axs[i].imshow(x[i].squeeze())
-        axs[i].set_title(f'{y[i]}')
+
+        if y is not None:
+
+            axs[i].set_title(f'{y[i]}')
+
         axs[i].grid('off')
         axs[i].axis('off')
 

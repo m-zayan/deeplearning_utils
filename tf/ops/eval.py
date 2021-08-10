@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-def get_grid_mask(grid_h, grid_w):
+def grid_mask_indices(grid_h, grid_w):
 
     """
     Parameters
@@ -16,13 +16,13 @@ def get_grid_mask(grid_h, grid_w):
 
     Returns
     -------
-    2D Tensor [grid mask]
+    2D Tensor [grid mask indices]
     """
 
-    grid_mask = tf.range(grid_h * grid_w)
-    grid_mask = tf.reshape(grid_mask, shape=(grid_h, grid_w))
+    mask = tf.range(grid_h * grid_w)
+    mask = tf.reshape(mask, shape=(grid_h, grid_w))
 
-    return grid_mask
+    return mask
 
 
 def non_max_suppression(boxes, scores, max_output_size: int,
@@ -41,7 +41,7 @@ def non_max_suppression(boxes, scores, max_output_size: int,
 
 def nd_non_max_suppression(boxes, scores, max_output_size: int,
                            iou_threshold: float = 0.5, score_threshold: float = float('-inf'),
-                           grid_mask=None):
+                           mask_indices=None):
 
     """
     Parameters
@@ -63,9 +63,9 @@ def nd_non_max_suppression(boxes, scores, max_output_size: int,
 
     score_threshold: float, default = float('-inf')
 
-    grid_mask: np.ndarray | tf.Tensor,
+    mask_indices: np.ndarray | tf.Tensor,
 
-        ex. tf.model_utils.ops.get_grid_mask(....)
+        ex. tf.ops.eval.grid_mask_indices(....)
 
     Returns
     -------
@@ -93,7 +93,7 @@ def nd_non_max_suppression(boxes, scores, max_output_size: int,
 
             choices.append(indices)
 
-            cells = tf.where(grid_mask == i)
+            cells = tf.where(mask_indices == i)
             cells = tf.cast(cells, dtype='float32')
 
             obj_cells.append(cells)

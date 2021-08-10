@@ -1,6 +1,42 @@
 import numpy as np
 
-__all__ = ['nd_pad', 'images_to_grid', 'grid_ground_truth']
+__all__ = ['batch', 'split', 'nd_pad', 'images_to_grid', 'grid_ground_truth']
+
+
+def batch(size: int, batch_size: int):
+
+    n = size // batch_size
+
+    if size % batch_size:
+
+        n += 1
+
+    for i in range(n):
+
+        start = batch_size * i
+
+        end = batch_size * (i + 1)
+        end = min(end, size)
+
+        yield start, end
+
+
+def split(size: int, n: int):
+
+    batch_size = size // n
+
+    if size % n:
+
+        batch_size += 1
+
+    for i in range(n):
+        
+        start = batch_size * i
+
+        end = batch_size * (i + 1)
+        end = min(end, size)
+
+        yield start, end
 
 
 def nd_pad(img: np.ndarray, pad_width: int, pad_value: float):
