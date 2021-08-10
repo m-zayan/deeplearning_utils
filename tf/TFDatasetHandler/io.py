@@ -1,9 +1,11 @@
 from typing import Union, Callable, Dict
 
 import warnings
+
 import sys
 
-import tqdm.notebook as tqdm
+from tqdm import tqdm
+
 import cv2
 
 import tensorflow as tf
@@ -352,7 +354,7 @@ class TfRecordWriter:
 
             with tf.io.TFRecordWriter(_path) as writer:
 
-                for j in tqdm.tqdm_notebook(range(start, end)):
+                for j in tqdm(range(start, end)):
 
                     example = self._serialize_example(j, _dataframe.iloc[j].to_dict(),
                                                       _dtypes, image_key, from_dir, has_ext, func)
