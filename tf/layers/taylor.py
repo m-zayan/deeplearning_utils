@@ -106,7 +106,7 @@ class AutoTaylorExpansion(tf.keras.layers.Layer):
 
         return expansion
 
-    def call(self, inputs):
+    def call(self, inputs, *args, **kwargs):
 
         expansion = self._find_expansion(inputs)
 

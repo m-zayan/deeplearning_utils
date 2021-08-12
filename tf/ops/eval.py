@@ -1,6 +1,12 @@
 import tensorflow as tf
+from tensorflow.keras import backend as K
+
+__all__ = ['xsigma', 'random_shape2d', 'clip_for_logits',
+           'random_proba', 'nindex', 'sample_chain',
+           'grid_mask_indices', 'nd_non_max_suppression', 'nd_non_max_suppression']
 
 
+# @tf.function - candidate
 def grid_mask_indices(grid_h, grid_w):
 
     """
@@ -25,6 +31,7 @@ def grid_mask_indices(grid_h, grid_w):
     return mask
 
 
+# @tf.function - candidate
 def non_max_suppression(boxes, scores, max_output_size: int,
                         iou_threshold: float = 0.5, score_threshold: float = float('-inf')):
 
@@ -39,6 +46,7 @@ def non_max_suppression(boxes, scores, max_output_size: int,
     return indices
 
 
+# @tf.function - candidate
 def nd_non_max_suppression(boxes, scores, max_output_size: int,
                            iou_threshold: float = 0.5, score_threshold: float = float('-inf'),
                            mask_indices=None):
@@ -105,3 +113,84 @@ def nd_non_max_suppression(boxes, scores, max_output_size: int,
     _, _ = tf.while_loop(lambda i, j: i < len(scores), body, [0, 0])
 
     return choices, obj_cells
+
+
+# @tf.function - candidate
+def xsigma(shape):
+
+    size = tf.math.reduce_sum(shape)
+
+    return tf.sqrt(2.0 / float(size))
+
+
+# @tf.function - candidate
+def random_shape2d(minh: int, maxh: int, minw: int, maxw: int, seed: int = None):
+
+    h = tf.random.uniform(shape=(), minval=minh, maxval=maxh, dtype=tf.int32, seed=seed)
+    w = tf.random.uniform(shape=(), minval=minw, maxval=maxw, dtype=tf.int32, seed=seed)
+
+    return h, w
+
+
+# @tf.function - candidate
+def clip_for_logits(proba):
+
+    mn = K.epsilon()
+    mx = 1.0 - mn
+
+    return K.clip(proba, min_value=mn, max_value=mx)
+
+
+# @tf.function - candidate
+def random_proba(shape, clipindex=None, clipproba=None, seed=None):
+
+    logits = tf.random.normal(shape=shape, mean=0.0, stddev=xsigma(shape), dtype=tf.float32, seed=seed)
+
+    if clipindex is not None:
+
+        clipproba = clip_for_logits(clipproba)
+
+        cliplogits = tf.math.log(clipproba) - tf.math.log(1.0 - clipproba)
+
+        logits = tf.tensor_scatter_nd_update(logits, [clipindex], [cliplogits])
+
+    proba = tf.math.softmax(logits)
+
+    return proba
+
+
+# @tf.function - candidate
+def nindex(ubound, indices):
+
+    def _nindex(elems):
+
+        if elems[0] > elems[1]:
+
+            return elems[1] % elems[0], 0
+
+        return elems[1], 0
+
+    ubound = tf.cast(ubound, dtype=tf.int32)
+    indices = tf.cast(indices, dtype=tf.int32)
+
+    ind, _ = tf.map_fn(_nindex, (ubound, indices))
+
+    return ind
+
+
+# @tf.function - candidate
+def sample_chain(n, chain, low=(0, 0), high=(-1, -1), plow=0.05, phigh=0.95, categorical=False):
+
+    low = nindex((chain, n), low)
+    high = nindex((chain, n), high)
+
+    proba = random_proba((chain, n), clipindex=[low, high], clipproba=[plow, phigh])
+
+    if categorical:
+
+        indices = tf.random.categorical(tf.math.log(proba), 1, dtype=tf.int32)
+        indices = tf.squeeze(indices)
+
+        return indices
+
+    return proba
