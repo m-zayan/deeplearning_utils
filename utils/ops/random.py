@@ -1,6 +1,8 @@
 import numpy as np
 
-__all__ = ['random_indices', 'gaussian_noise']
+from ..external.common import Sys
+
+__all__ = ['random_indices', 'gaussian_noise', 'aligned_shuffle']
 
 
 def random_indices(n: int, start: int, end: int, step=1, replace=False, random_state=None):
@@ -17,11 +19,13 @@ def random_indices(n: int, start: int, end: int, step=1, replace=False, random_s
     return indices
 
 
-def gaussian_noise(x, mu=0.0, sigma=1.0, mu_rate=0.9, sigma_rate=0.8, random_state=None):
+# noinspection PyArgumentList
+def gaussian_noise(x: np.ndarray, mu: float = 0.0, sigma: float = 1.0, mu_rate: float = 0.9, sigma_rate: float = 0.8,
+                   random_state: int = None) -> np.ndarray:
 
     random = np.random.RandomState(random_state)
 
-    scale = (x.max() - x.min())
+    scale = (x.max(axis=-1, keepdims=True) - x.min(axis=-1, keepdims=True))
 
     mean = mu * mu_rate + (1.0 - mu_rate) * scale
     sigma = sigma * sigma_rate + (1.0 - sigma_rate) * scale
@@ -31,3 +35,17 @@ def gaussian_noise(x, mu=0.0, sigma=1.0, mu_rate=0.9, sigma_rate=0.8, random_sta
     noisy_x = x + noise
 
     return noisy_x
+
+
+def aligned_shuffle(args: list, random_state=None) -> None:
+
+    if random_state is None:
+
+        random_state = np.random.randint(0, Sys.max(32), (1, ))
+
+    random = np.random.RandomState(random_state)
+
+    for i in range(len(args)):
+
+        random.shuffle(args[i])
+        random.seed(random_state)

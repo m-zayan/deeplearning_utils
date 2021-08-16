@@ -8,6 +8,8 @@ import tensorflow_addons as tfa
 
 from ..ops.eval import random_shape2d, xsigma
 
+__all__ = ['RandomTransformation', 'ImageGenerator']
+
 
 # @tf.function - candidate
 class RandomTransformation:

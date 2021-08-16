@@ -27,7 +27,7 @@ import requests
 
 from .handlers.exceptions import InvalidConfigurations
 
-__all__ = ['Logger', 'OS', 'Sys', 'Reader', 'Writer', 'Time', 'ResManger']
+__all__ = ['Logger', 'OS', 'Sys', 'Terminal', 'Reader', 'Writer', 'IO', 'Time', 'ResManger']
 
 OS_ROOT_DIR = str(Path.home()) + '/../../'
 
@@ -114,8 +114,6 @@ class Logger:
 
 class OS:
 
-    TYPE = sys.platform
-
     @staticmethod
     def file_exists(path: str) -> bool:
 
@@ -179,48 +177,109 @@ class OS:
         raise ValueError(f'file : {filename}, is not found')
 
     @staticmethod
-    def locate_file(pattern: str, params: str = '', updatedb: bool = False) -> List[str]:
+    def windows() -> bool:
+
+        return 'win' in Sys.platform()
+
+    @staticmethod
+    def linux() -> bool:
+
+        return 'linux' in Sys.platform()
+
+
+class Sys:
+
+    @staticmethod
+    def insert_path(index: int, path: str) -> None:
+
+        sys.path.insert(index, path)
+
+    @staticmethod
+    def maxint() -> int:
+
+        return sys.maxsize
+
+    @staticmethod
+    def max(nbits) -> int:
+
+        return 2 ** nbits - 1
+
+    @staticmethod
+    def platform() -> str:
+
+        return sys.platform
+
+    @staticmethod
+    def virtualenv() -> List:
+
+        return [sys.base_prefix, sys.prefix, sys.exec_prefix]
+
+    @staticmethod
+    def __on_platform__(signature, **kwargs):
+
+        for key, value in kwargs.items():
+
+            if value and (key not in Sys.platform()):
+
+                raise ValueError(f'Not yet supported, {signature}, Platform={Sys.platform()}')
+
+
+class Terminal:
+
+    @staticmethod
+    def locate_file(pattern: str, params: str = '', updatedb: bool = False, **kwargs) -> List[str]:
+
+        Sys.__on_platform__('locate_file(...)', linux=True)
 
         if updatedb:
 
-            OS.run_commands('nice -n 19 ionice -c 3 updatedb')
+            Terminal.run_command('nice -n 19 ionice -c 3 updatedb', **kwargs)
 
-        file_dirs = OS.run_commands(f'locate {params} {pattern}', multi_outputs=True, multi_output_sep='\n')
+        file_dirs = Terminal.run_command(f'locate {params} {pattern}',
+                                         multi_outputs=True, multi_output_sep='\n', **kwargs)
 
-        if len(file_dirs) > 1:
+        if (file_dirs is not None) \
+                and (len(file_dirs) > 1):
 
             file_dirs.pop()
 
         return file_dirs
 
     @staticmethod
-    def run_commands(command: str, multi_outputs: bool = True, multi_output_sep: str = '\n'):
+    def run_command(command: str, multi_outputs: bool = True, multi_output_sep: str = '\n',
+                    signature='', **kwargs) -> Union[None, bytes, str, list]:
 
         output: Union[bytes, str, list]
 
         try:
 
-            if OS.TYPE == 'linux':
+            if OS.linux():
+
+                if kwargs.get('as_root', False):
+
+                    if kwargs.get('password', None) is None:
+                        raise ValueError(f'password=?, is required {signature}')
+
+                    command = f'echo {kwargs["password"]} | sudo -S {command}'
 
                 output = process.check_output(command, shell=True)
 
-            elif OS.TYPE == 'windows' or OS.TYPE == 'win':
+            elif OS.windows():
 
                 bash_dir = os.environ.get('bash')
 
                 if bash_dir is None:
-
                     raise InvalidConfigurations('bash environmental variable doesn\'t exist')
 
                 output = process.check_output([bash_dir, '-c', command], shell=True)
 
             else:
 
-                raise InvalidConfigurations(f'Invalid OS Type : {OS.TYPE}')
+                raise InvalidConfigurations(f'Invalid Platform : {Sys.platform()}')
 
         except process.CalledProcessError as error:
 
-            content = {f'CalledProcessError': 'OS::run_commands(...), ' + str(error)}
+            content = {f'CalledProcessError': 'OS::run_command(...), ' + str(error)}
             Logger.write_messages_json(content)
 
             return None
@@ -230,35 +289,50 @@ class OS:
             output = output.decode()
 
         if multi_outputs:
-
             output = output.split(multi_output_sep)
 
         return output
 
-    def kill_gpu_processes(self, process_keyword: str = 'python'):
+    @staticmethod
+    def pip_install(packname: str, params: str = '', signature: str = '', **kwargs) -> None:
+
+        _ = Terminal.run_command(f'pip install {params} {packname}', signature=signature, **kwargs)
+
+    @staticmethod
+    def pip_uninstall(packname: str, params: str = '', signature: str = '', **kwargs) -> None:
+
+        _ = Terminal.run_command(f'pip uninstall {params} {packname}', signature=signature, **kwargs)
+
+    @staticmethod
+    def conda_activate(envname, signature: str = '', **kwargs) -> None:
+
+        _ = Terminal.run_command(f'conda activate {envname}', signature=signature, **kwargs)
+
+    @staticmethod
+    def pip_info(signature='', **kwargs) -> str:
+
+        envname = Terminal.run_command(f'pip -V', signature=signature, **kwargs)
+
+        return envname
+
+    @staticmethod
+    def kill_gpu_processes(process_keyword: str = 'python') -> None:
 
         command = f"nvidia-smi | grep '{process_keyword}'"
 
-        output = self.run_commands(command=command, multi_outputs=True)
+        output = Terminal.run_command(command=command, multi_outputs=True)
+
         output = list(map(lambda l: l.split(), output))
         output = list(map(lambda l: l[4] if len(l) > 4 and l[4].isnumeric() else None, output))
 
         for pid in output:
 
             if pid is not None:
-
                 Logger.info(f'kill : {pid}')
-                self.run_commands(command=f'kill -9 {pid}')
+
+                Terminal.run_command(command=f'kill -9 {pid}')
 
         Logger.info('kill_gpu_processes::', output)
-
-
-class Sys:
-
-    @staticmethod
-    def insert_path(index: int, path: str) -> None:
-
-        sys.path.insert(index, path)
 
 
 class Reader:

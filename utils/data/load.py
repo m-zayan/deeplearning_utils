@@ -6,6 +6,8 @@ from ..external.common import OS
 
 from ..ops.io import load_npz
 
+__all__ = ['npz_batch', 'npz_nbatch']
+
 
 def npz_batch(src, batch_num, dname, prefix):
 

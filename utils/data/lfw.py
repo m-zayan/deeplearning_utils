@@ -10,10 +10,15 @@ from ..external.common import OS, Logger
 from ..tf.ops.io import download
 
 from ..ops.io import imread, save_as_npz
+
 from ..ops.reshape_utils import batch
 
+from ..ops.random import aligned_shuffle
 
-def get(dest, shape=(224, 224), batch_size=64, dname='lfw', prefix='data'):
+__all__ = ['get']
+
+
+def get(dest, shape=(224, 224), batch_size=64, dname='lfw', prefix='data', shuffle=False, random_state=None):
 
     # http://vis-www.cs.umass.edu/lfw
 
@@ -26,6 +31,10 @@ def get(dest, shape=(224, 224), batch_size=64, dname='lfw', prefix='data'):
     ddir = OS.join(ddir, 'lfw')
 
     image_path = glob.glob(ddir + '/*/*')
+
+    if shuffle:
+
+        aligned_shuffle([image_path], random_state=random_state)
 
     size = len(image_path)
 

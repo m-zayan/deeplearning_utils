@@ -11,10 +11,15 @@ from ..external.common import OS, Reader, Logger
 from ..tf.ops.io import download
 
 from ..ops.io import imread, save_as_npz
+
 from ..ops.reshape_utils import batch
 
+from ..ops.random import aligned_shuffle
 
-def get(dest, shape=(224, 224), batch_size=64, dname='kvasir', prefix='data'):
+__all__ = ['get']
+
+
+def get(dest, shape=(224, 224), batch_size=64, dname='kvasir', prefix='data', shuffle=False, random_state=None):
 
     # https://datasets.simula.no/kvasir-seg/
 
@@ -28,6 +33,10 @@ def get(dest, shape=(224, 224), batch_size=64, dname='kvasir', prefix='data'):
 
     image_path = glob.glob(ddir + '/images/*')
     mask_path = glob.glob(ddir + '/masks/*')
+
+    if shuffle:
+
+        aligned_shuffle([image_path, mask_path], random_state=random_state)
 
     meta_path = OS.join(ddir, 'kavsir_bboxes.json')
 

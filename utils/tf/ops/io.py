@@ -1,5 +1,7 @@
 import tensorflow as tf
 
+__all__ = ['download']
+
 
 def download(fname, url, extract=True):
 
