@@ -25,7 +25,7 @@ import traceback
 
 import requests
 
-from .handlers.exceptions import InvalidConfigurations
+from .exceptions import InvalidConfigurations
 
 __all__ = ['Logger', 'OS', 'Sys', 'Terminal', 'Reader', 'Writer', 'IO', 'Time', 'ResManger']
 
@@ -153,6 +153,11 @@ class OS:
     def splitdir(path: str, index: int = 0, sep: str = '/') -> str:
 
         return path.split(sep)[index]
+
+    @staticmethod
+    def dirname(path: str):
+
+        return os.path.dirname(path)
 
     @staticmethod
     def filename(path: str, ext_include: bool = False, sep: str = '/') -> str:

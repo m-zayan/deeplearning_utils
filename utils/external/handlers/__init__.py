@@ -16,7 +16,8 @@ def __selenium_install__(**kwargs) -> None:
 
     Sys.__on_platform__(sig, linux=True)
 
-    path = '../scripts/chromedriver.sh'
+    path = '../../../scripts/chromedriver.sh'
+    path = OS.join(OS.dirname(__file__), path)
 
     if not OS.file_exists(path):
 
@@ -30,7 +31,7 @@ def __selenium_install__(**kwargs) -> None:
 
     Terminal.pip_install('selenium')
 
-    Logger.info('__selenium_install__(...) <--> Done!')
+    Logger.info('\n__selenium_install__(...) <--> Done!\n')
 
 
 def __selenium_uninstall__(**kwargs) -> None:
@@ -39,9 +40,11 @@ def __selenium_uninstall__(**kwargs) -> None:
 
     Sys.__on_platform__(sig, linux=True)
 
-    path = '../scripts/rm_chromedriver.sh'
+    path = '../../../scripts/rm_chromedriver.sh'
+    path = OS.join(OS.dirname(__file__), path)
 
     if not OS.file_exists(path):
+
         raise ValueError(f'path={path}, does not exist')
 
     cmd_seq = [f'sh {path}']
@@ -52,7 +55,7 @@ def __selenium_uninstall__(**kwargs) -> None:
 
     Terminal.pip_uninstall('selenium', '--yes')
 
-    Logger.info('__selenium_uninstall__(...) <--> Done!')
+    Logger.info('\n__selenium_uninstall__(...) <--> Done!\n')
 
 
 def install_dependencies(**kwargs):

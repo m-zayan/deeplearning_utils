@@ -38,8 +38,10 @@ def get(dest, shape=(224, 224), batch_size=64, dname='lfw', prefix='data', shuff
 
     size = len(image_path)
 
-    Logger.info({'directory': ddir, 
+    Logger.set_line(length=60)
+    Logger.info({'directory': ddir,
                  'size': size})
+    Logger.set_line(length=60)
 
     def lfw_load():
 
