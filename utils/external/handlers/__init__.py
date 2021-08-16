@@ -25,6 +25,10 @@ def __selenium_install__(**kwargs) -> None:
 
     cmd_seq = [f'sh {path}']
 
+    if kwargs.get('notebook', False):
+
+        cmd_seq[0] += ' -n'
+
     for cmd in tqdm(cmd_seq):
 
         _ = Terminal.run_command(cmd, **kwargs)
@@ -48,6 +52,10 @@ def __selenium_uninstall__(**kwargs) -> None:
         raise ValueError(f'path={path}, does not exist')
 
     cmd_seq = [f'sh {path}']
+
+    if kwargs.get('notebook', False):
+
+        cmd_seq[0] += ' -n'
 
     for cmd in tqdm(cmd_seq):
 
@@ -73,15 +81,13 @@ def install_dependencies(**kwargs):
             __selenium_install__(signature=sig, as_root=True, **kwargs)
 
 
-def reinstall_dependencies(**kwargs):
+def uninstall_dependencies(**kwargs):
 
     sig = 'reinstall_dependencies(...)'
 
     if kwargs.get('notebook', False):
 
         __selenium_uninstall__(signature=sig, **kwargs)
-        __selenium_install__(signature=sig, **kwargs)
 
     else:
         __selenium_uninstall__(signature=sig, as_root=True, **kwargs)
-        __selenium_install__(signature=sig, as_root=True, **kwargs)
