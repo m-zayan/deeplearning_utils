@@ -1,5 +1,25 @@
 # Deep Learning Utils
 
+## Install Dependencies 
+
+-------
+
+>### Google Colab
+
+```python
+from utils.external import handlers
+
+handlers.install_dependencies(notebook=True)
+```
+
+>### Linux
+
+```python
+from utils.external import handlers
+
+handlers.install_dependencies(notebook=False, passwords='???')
+```
+
 ## Datatset
 
 -------
@@ -36,23 +56,24 @@ for key in data:
   print(data[key].shape)
 ```
 
-
-## Install Dependencies 
-
--------
-
->### Google Colab
+>### Cityscapes
 
 ```python
 from utils.external import handlers
 
 handlers.install_dependencies(notebook=True)
+
+from utils.data import cityscapes
+
+username = '???'
+password = '???'
+
+working_dir = 'to_path/'
+
+# e.g. cityscapes.Info.left_view
+info = cityscapes.Info.panoptic_parts
+
+cityscapes.get(username, password, info, dest=working_dir, shape=(256, 128), 
+               batch_size=None, dname='cityscapes', prefix='data')
 ```
 
->### Linux
-
-```python
-from utils.external import handlers
-
-handlers.install_dependencies(notebook=False, passwords='???')
-```
