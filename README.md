@@ -63,7 +63,7 @@ from utils.external import handlers
 
 handlers.install_dependencies(notebook=True)
 
-from utils.data import cityscapes
+from utils.data import cityscapes, load
 
 username = '???'
 password = '???'
@@ -75,5 +75,13 @@ info = cityscapes.Info.panoptic_parts
 
 cityscapes.get(username, password, info, dest=working_dir, shape=(256, 128), 
                batch_size=None, dname='cityscapes', prefix='data')
+
+
+data = load.npz_nbatch(working_dir, start=0, end=2, 
+                       dname='cityscapes/train', prefix='data')
+
+for key in data:
+
+  print(data[key].shape)
 ```
 
