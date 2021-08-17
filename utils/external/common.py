@@ -1,17 +1,18 @@
-import zipfile
 from typing import Tuple, List, Dict, Callable, Any, Union
 
 import sys
 import os
 
-import io
-
 import subprocess as process
 from pathlib import Path
 
+import glob
+
 import re
 
-from zipfile import ZipFile
+import io
+
+from zipfile import ZipFile, ZipInfo
 
 import json
 import csv
@@ -27,7 +28,9 @@ import requests
 
 from .exceptions import InvalidConfigurations
 
-__all__ = ['Logger', 'OS', 'Sys', 'Terminal', 'Reader', 'Writer', 'IO', 'Time', 'ResManger']
+
+__all__ = ['Logger', 'OS', 'Sys', 'Terminal', 'Reader', 'Writer', 'IO',
+           'Time', 'ResManger', 'StatusWatch']
 
 OS_ROOT_DIR = str(Path.home()) + '/../../'
 
@@ -114,6 +117,10 @@ class Logger:
 
 class OS:
 
+    KB = 2 ** 10
+    MB = 2 ** 20
+    GB = 2 ** 30
+
     @staticmethod
     def file_exists(path: str) -> bool:
 
@@ -123,6 +130,11 @@ class OS:
     def dir_exists(path: str) -> bool:
 
         return Path(path).is_dir()
+
+    @staticmethod
+    def make_dir(path: str) -> None:
+
+        os.mkdir(path)
 
     @staticmethod
     def make_dirs(path: str) -> None:
@@ -155,7 +167,12 @@ class OS:
         return path.split(sep)[index]
 
     @staticmethod
-    def dirname(path: str):
+    def splitext(path: str) -> Tuple[str, str]:
+
+        return os.path.splitext(path)
+
+    @staticmethod
+    def dirname(path: str) -> str:
 
         return os.path.dirname(path)
 
@@ -166,20 +183,51 @@ class OS:
 
         if not ext_include:
 
-            return os.path.splitext(fname)[0]
+            return OS.splitext(fname)[0]
 
         return fname
-  
+
     @staticmethod
-    def file_at(filename: str, *args) -> str:
+    def listdir(path: str) -> List[str]:
+
+        return os.listdir(path)
+
+    @staticmethod
+    def match_ext(path: str, ext_list: Union[None, list] = None) -> bool:
+
+        if ext_list is None:
+
+            return True
+
+        fext = OS.splitext(path)[-1]
+
+        for ext in ext_list:
+
+            if fext == ext:
+
+                return True
+
+        return False
+
+    @staticmethod
+    def file_at(path: str, *args) -> str:
 
         for i in range(len(args)):
 
-            if filename in os.listdir(args[i]):
+            if path in os.listdir(args[i]):
 
                 return args[i]
 
-        raise ValueError(f'file : {filename}, is not found')
+        raise ValueError(f'file : {path}, is not found')
+
+    @staticmethod
+    def file_size(path) -> float:
+
+        if not OS.file_exists(path):
+
+            raise ValueError(f'file: {OS.filename(path)}, is not found, or not a regular file')
+
+        return os.path.getsize(path)
 
     @staticmethod
     def windows() -> bool:
@@ -215,12 +263,12 @@ class Sys:
         return sys.platform
 
     @staticmethod
-    def virtualenv() -> List:
+    def virtualenv() -> List[str]:
 
         return [sys.base_prefix, sys.prefix, sys.exec_prefix]
 
     @staticmethod
-    def __on_platform__(signature, **kwargs):
+    def __on_platform__(signature, **kwargs) -> None:
 
         for key, value in kwargs.items():
 
@@ -496,7 +544,7 @@ class IO:
             return path
 
     @staticmethod
-    def get_zipfile_content(url: str) -> zipfile.ZipFile:
+    def get_zipfile_content(url: str) -> ZipFile:
 
         """
         Parameter
@@ -545,6 +593,33 @@ class IO:
         bytes_data = d_bytes.readlines()
 
         return bytes_data
+
+    @staticmethod
+    def zipfile_read(zipfile_path: str, include_dirs: bool = False, ext_list: list = None,
+                     **kwargs) -> Tuple[ZipFile, List[ZipInfo]]:
+
+        # -----------------------------------------------------
+
+        def filelist_filter(_zipfile: ZipFile):
+
+            _filelist = []
+
+            for fileinfo in _zipfile.filelist:
+
+                if (not fileinfo.is_dir() or include_dirs) \
+                        and OS.match_ext(fileinfo.filename, ext_list):
+
+                    _filelist.append(fileinfo)
+
+            return _filelist
+
+        # -----------------------------------------------------
+
+        _zipfile = ZipFile(zipfile_path, 'r', **kwargs)
+
+        filelist = filelist_filter(_zipfile)
+
+        return _zipfile, filelist
 
 
 class Formatter:
@@ -599,3 +674,36 @@ class ResManger:
                 vars_name[value] = key
 
         return vars_name
+
+
+class StatusWatch:
+
+    @staticmethod
+    def fsize(path: str) -> float:
+
+        size = OS.file_size(path) / OS.MB
+
+        return size
+
+    @staticmethod
+    def download(ddir: str, ongoing_indicator: str = '*.crdownload') -> Callable:
+
+        ddir = OS.realpath(ddir)
+
+        pattern = OS.join(ddir, ongoing_indicator)
+
+        files = glob.glob(pattern)
+
+        def on_watch(dtype: Any = float) -> Tuple[bool, Dict[str, Any]]:
+
+            mp = {}
+
+            for path in files:
+
+                if OS.file_exists(path):
+
+                    mp[OS.filename(path, ext_include=False)] = dtype(StatusWatch.fsize(path))
+
+            return bool(len(mp)), mp
+
+        return on_watch

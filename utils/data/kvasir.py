@@ -1,5 +1,6 @@
+from typing import Tuple
+
 import glob
-import os
 
 import numpy as np
 import pandas as pd
@@ -19,7 +20,8 @@ from ..ops.random import aligned_shuffle
 __all__ = ['get']
 
 
-def get(dest, shape=(224, 224), batch_size=64, dname='kvasir', prefix='data', shuffle=False, random_state=None):
+def get(dest: str, shape: Tuple[int, int] = (224, 224), batch_size: int = 64,
+        dname: str = 'kvasir', prefix: str = 'data', shuffle: bool = False, random_state: int = None) -> str:
 
     # https://datasets.simula.no/kvasir-seg/
 
@@ -46,7 +48,6 @@ def get(dest, shape=(224, 224), batch_size=64, dname='kvasir', prefix='data', sh
     Logger.info({'directory': ddir,
                  'size': size})
     Logger.set_line(length=60)
-
 
     def kvasir_validate():
 
@@ -101,7 +102,7 @@ def get(dest, shape=(224, 224), batch_size=64, dname='kvasir', prefix='data', sh
 
     if not OS.dir_exists(newdir):
 
-        os.mkdir(newdir)
+        OS.make_dir(newdir)
 
     kvasir_data = kvasir_load()
 
@@ -109,7 +110,7 @@ def get(dest, shape=(224, 224), batch_size=64, dname='kvasir', prefix='data', sh
 
         fname = f'{prefix}_{i}'
 
-        path = os.path.join(newdir, fname)
+        path = OS.join(newdir, fname)
 
         save_as_npz(path, **data)
 

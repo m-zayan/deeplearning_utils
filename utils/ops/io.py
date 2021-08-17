@@ -4,7 +4,8 @@ import numpy as np
 
 import cv2
 
-__all__ = ['write_image', 'imread', 'save_as_npy', 'load_npy', 'save_as_npz', 'load_npz']
+__all__ = ['write_image', 'imread', 'decode_image_bit8',
+           'save_as_npy', 'load_npy', 'save_as_npz', 'load_npz']
 
 
 def write_image(path, image, *args, **kwargs):
@@ -13,7 +14,7 @@ def write_image(path, image, *args, **kwargs):
 
 
 def imread(path: str, cvt: bool = False, grayscale: bool = False,
-           size: Union[Tuple, List] = None, interpolation: Any = cv2.INTER_AREA):
+           size: Union[Tuple, List] = None, interpolation: Any = cv2.INTER_AREA) -> np.ndarray:
 
     flag = cv2.IMREAD_UNCHANGED
 
@@ -29,6 +30,14 @@ def imread(path: str, cvt: bool = False, grayscale: bool = False,
         img = cv2.resize(img, dsize=size, interpolation=interpolation)
 
     return img
+
+
+def decode_image_bit8(dbytes: bytes) -> np.ndarray:
+
+    image = np.frombuffer(dbytes, np.uint8)
+    image = cv2.imdecode(image, cv2.IMREAD_UNCHANGED)
+
+    return image
 
 
 # noinspection PyTypeChecker

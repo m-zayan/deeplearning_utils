@@ -1,5 +1,6 @@
+from typing import Tuple
+
 import glob
-import os
 
 import numpy as np
 
@@ -18,7 +19,8 @@ from ..ops.random import aligned_shuffle
 __all__ = ['get']
 
 
-def get(dest, shape=(224, 224), batch_size=64, dname='lfw', prefix='data', shuffle=False, random_state=None):
+def get(dest: str, shape: Tuple[int, int] = (224, 224), batch_size: int = 64,
+        dname: str = 'lfw', prefix: str = 'data', shuffle: bool = False, random_state: int = None) -> str:
 
     # http://vis-www.cs.umass.edu/lfw
 
@@ -69,7 +71,7 @@ def get(dest, shape=(224, 224), batch_size=64, dname='lfw', prefix='data', shuff
 
     if not OS.dir_exists(newdir):
 
-        os.mkdir(newdir)
+        OS.make_dir(newdir)
 
     lfw_data = lfw_load()
 
@@ -77,7 +79,7 @@ def get(dest, shape=(224, 224), batch_size=64, dname='lfw', prefix='data', shuff
 
         fname = f'{prefix}_{i}'
 
-        path = os.path.join(newdir, fname)
+        path = OS.join(newdir, fname)
 
         save_as_npz(path, **data)
 
