@@ -83,7 +83,7 @@ def install_dependencies(**kwargs):
 
 def uninstall_dependencies(**kwargs):
 
-    sig = 'reinstall_dependencies(...)'
+    sig = 'uninstall_dependencies(...)'
 
     if kwargs.get('notebook', False):
 

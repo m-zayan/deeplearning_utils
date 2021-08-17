@@ -4,7 +4,7 @@ notebook=false
 version=92.0.4515.107
 addr=64
 
-while getopts v:a:n: flag
+while getopts v:a:n flag
 do
     # shellcheck disable=SC2220
     case "${flag}" in
@@ -14,7 +14,13 @@ do
     esac
 done
 
-if "$notebook"; then
+if $notebook; then
+
+  apt-get update
+  apt install chromium-chromedriver
+  cp /usr/lib/chromium-browser/chromedriver /usr/bin
+
+else
 
   sudo apt-get update
   sudo apt-get install -y unzip xvfb libxi6 libgconf-2-4
@@ -37,11 +43,5 @@ if "$notebook"; then
   sudo chmod +x /usr/bin/chromedriver
 
   sudo rm chromedriver_linux"$addr".zip
-
-else
-
-  apt-get update
-  apt install chromium-chromedriver
-  cp /usr/lib/chromium-browser/chromedriver /usr/bin
 
 fi
