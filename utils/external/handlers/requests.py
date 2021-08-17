@@ -13,7 +13,7 @@ from ..common import Terminal, Logger, Time
 __all__ = ['Chrome']
 
 
-def from_kwargs_callback(key, kwargs_key='meta', **kwargs):
+def from_kwargs_callback(key, **kwargs):
 
     if key in kwargs:
 
@@ -21,9 +21,9 @@ def from_kwargs_callback(key, kwargs_key='meta', **kwargs):
 
             raise ValueError(f'{key}, is not callable')
 
-        elif kwargs_key in kwargs:
+        elif 'meta' in kwargs:
 
-            return kwargs[key](**kwargs.get(kwargs_key, {}))
+            return kwargs[key](**kwargs.get('meta', {}))
 
         else:
 
@@ -54,13 +54,17 @@ class Chrome:
 
             self.path: str = path
 
-        self.driver: Remote = webdriver.Chrome(options=self.options, executable_path=self.path)
+        self.driver: Union[None, Remote] = None
 
         # --------------------------------------
 
-    def get(self, url: str, load_timeout: float = 0.0, max_reloads: int = 1, **kwargs):
+    def build(self):
 
-        self.driver.set_page_load_timeout(time_to_wait=load_timeout)
+        self.driver = webdriver.Chrome(options=self.options, executable_path=self.path)
+
+    def get(self, url: str, load_timeout: float = 30.0, max_reloads: int = 1, **kwargs):
+
+        self.driver.set_page_load_timeout(load_timeout)
 
         for i in range(max_reloads):
 
@@ -185,9 +189,29 @@ class Chrome:
 
         self.options._arguments = list(options)
 
-        if hasattr(self, 'driver'):
+        if hasattr(self, 'driver') and (self.driver is not None):
 
             self.driver.start_session(self.options.to_capabilities())
+
+    def set_download_directory(self, dest: str) -> None:
+
+        prefs = {'download.default_directory': dest}
+
+        self.options.add_experimental_option('prefs', prefs)
+
+    def login(self, url: str, username: str, password: str, uname_key: str = 'username',
+              passwd_key: str = 'password', submit_key: str = 'submit', load_timeout=60.0):
+
+        self.get(url, load_timeout=load_timeout)
+
+        uname = self.driver.find_element_by_name(uname_key)
+        passwd = self.driver.find_element_by_name(passwd_key)
+        submit = self.driver.find_element_by_name(submit_key)
+
+        uname.send_keys(username)
+        passwd.send_keys(password)
+
+        submit.click()
 
     @staticmethod
     def node_find_element_by_xpath(node: WebElement, xpath: str, raise_exc: bool = True) -> Union[None, WebElement]:
@@ -235,7 +259,15 @@ class Chrome:
 
         return getattr(element, attr_name, default)
 
-    scroll_height = property(get_scroll_height)
+    @staticmethod
+    def property_map(elems, name):
+
+        mp = {}
+
+        for elem in elems:
+            mp[elem.get_property(name)] = elem
+
+        return mp
 
     @staticmethod
     def find_path(**kwargs) -> str:
@@ -248,3 +280,5 @@ class Chrome:
             return path[0]
 
         raise ValueError('find_path(...)')
+
+    scroll_height = property(get_scroll_height)
