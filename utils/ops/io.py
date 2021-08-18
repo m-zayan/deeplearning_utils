@@ -1,10 +1,14 @@
 from typing import Union, Tuple, List, Any
 
+from io import BytesIO
+
+from PIL import Image
+
 import numpy as np
 
 import cv2
 
-__all__ = ['write_image', 'imread', 'decode_image_bit8',
+__all__ = ['write_image', 'imread', 'cv_decode_image', 'pil_decode_image',
            'save_as_npy', 'load_npy', 'save_as_npz', 'load_npz']
 
 
@@ -32,12 +36,21 @@ def imread(path: str, cvt: bool = False, grayscale: bool = False,
     return img
 
 
-def decode_image_bit8(dbytes: bytes) -> np.ndarray:
+def cv_decode_image(dbytes: bytes, **kwargs) -> np.ndarray:
 
-    image = np.frombuffer(dbytes, np.uint8)
+    dtype = kwargs.get('dtype', np.uint8)
+
+    image = np.frombuffer(dbytes, dtype)
     image = cv2.imdecode(image, cv2.IMREAD_UNCHANGED)
 
     return image
+
+
+def pil_decode_image(dbytes: bytes) -> np.ndarray:
+
+    image = Image.open(BytesIO(dbytes))
+
+    return np.array(image)
 
 
 # noinspection PyTypeChecker

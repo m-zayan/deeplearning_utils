@@ -20,7 +20,7 @@ from ..external.common import OS, IO, Logger, Time, StatusWatch
 
 from ..external.handlers.requests import Chrome
 
-from ..ops.io import decode_image_bit8, save_as_npz
+from ..ops.io import cv_decode_image, save_as_npz
 
 from ..ops.reshape_utils import batch
 
@@ -156,7 +156,7 @@ def cityscapes_download(username, password, packid, **kwargs) -> str:
     return cache_dir
 
 
-def get(username: str, password: str, info: Dict[Any, Any], dest: str, shape: Tuple[int, int] = (224, 224),
+def get(username: str, password: str, info: Dict[Any, Any], dest: str, shape: Union[None, Tuple[int, int]] = None,
         batch_size: Dict[str, int] = None, dname: str = 'cityscapes', prefix: str = 'data',
         shuffle: bool = False, random_state: int = None, **kwargs) -> str:
 
@@ -166,6 +166,7 @@ def get(username: str, password: str, info: Dict[Any, Any], dest: str, shape: Tu
 
     default_size = {'train': 64, 'test': 64, 'val': 64}
 
+    # e.g. Info.panoptic_parts <--> a reasonable choice might be - cv2.INTER_NEAREST
     interpolation = kwargs.get('interpolation', cv2.INTER_AREA)
 
     # ---------------------------------------------------------------------
@@ -250,13 +251,17 @@ def get(username: str, password: str, info: Dict[Any, Any], dest: str, shape: Tu
                 # -----------------------------
 
                 _bytes = data_file.read(_path)
-                _x = decode_image_bit8(_bytes)
+
+                # processing.cityscapes <--> Annotation.cv_load_fix(...)
+                _x = cv_decode_image(_bytes)
 
                 # -----------------------------
 
                 _size = _x.shape[:2]
 
-                _x = cv2.resize(_x, shape, interpolation=interpolation)
+                if shape is not None:
+
+                    _x = cv2.resize(_x, shape, interpolation=interpolation)
 
                 _data['x'].append(_x)
                 _data['id'].append(_id)
