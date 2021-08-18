@@ -59,6 +59,7 @@ class Meta:
             k2 = str_list[i]
 
             if i == n - 1:
+
                 new_key(_ref[k1], k2, [])
 
                 return

@@ -59,6 +59,8 @@ for key in data:
 >### Cityscapes
 
 ```python
+import cv2
+
 from utils.external import handlers
 
 handlers.install_dependencies(notebook=True)
@@ -73,8 +75,9 @@ working_dir = 'to_path/'
 # e.g. cityscapes.Info.left_view
 info = cityscapes.Info.panoptic_parts
 
-cityscapes.get(username, password, info, dest=working_dir, shape=(256, 128), 
-               batch_size=None, dname='cityscapes', prefix='data')
+cityscapes.get(username, password, info, dest=working_dir, 
+               shape=(256, 128), batch_size=None, dname='cityscapes', 
+               prefix='data', interpolation=cv2.INTER_NEAREST)
 
 
 data = load.npz_nbatch(working_dir, start=0, end=2, 

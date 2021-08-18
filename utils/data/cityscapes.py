@@ -40,6 +40,8 @@ class Info:
 
     valid_ext = ['.png', '.jpg', '.jpeg', '.tif']
 
+    cache_dir = './cache/cityscapes'
+
 
 def parse_split(path, **kwargs):
 
@@ -58,8 +60,7 @@ def download_request(username, password, packid, load_timeout) -> Tuple[str, Cal
 
     # ---------------------------------------------------------
 
-    cache_dir = './cache/cityscapes'
-    cache_dir = OS.realpath(cache_dir)
+    cache_dir = OS.realpath(Info.cache_dir)
 
     if not OS.dir_exists(cache_dir):
 
