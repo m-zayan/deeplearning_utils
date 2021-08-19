@@ -53,6 +53,7 @@ class Meta:
         def normalize_ref(_ref, i=1):
 
             if i >= n:
+
                 return
 
             k1 = str_list[i - 1]
@@ -159,7 +160,7 @@ class Annotation:
 
         if min_value == 0:
 
-            return image
+            min_value = 1e-45
 
         return image / min_value
 

@@ -20,7 +20,7 @@ from ..external.common import OS, IO, Logger, Time, StatusWatch
 
 from ..external.handlers.requests import Chrome
 
-from ..ops.io import cv_decode_image, save_as_npz
+from ..ops.io import pil_decode_image, cv_decode_image, save_as_npz
 
 from ..ops.reshape_utils import batch
 
@@ -170,6 +170,8 @@ def get(username: str, password: str, info: Dict[Any, Any], dest: str, shape: Un
     # e.g. Info.panoptic_parts <--> a reasonable choice might be - cv2.INTER_NEAREST
     interpolation = kwargs.get('interpolation', cv2.INTER_AREA)
 
+    cv_decode = kwargs.get('cv_decode', False)
+
     # ---------------------------------------------------------------------
 
     if batch_size is None:
@@ -253,8 +255,15 @@ def get(username: str, password: str, info: Dict[Any, Any], dest: str, shape: Un
 
                 _bytes = data_file.read(_path)
 
-                # processing.cityscapes <--> Annotation.cv_load_fix(...)
-                _x = cv_decode_image(_bytes)
+                _x = None
+
+                if cv_decode:
+
+                    _x = cv_decode_image(_bytes)
+
+                else:
+
+                    _x = pil_decode_image(_bytes)
 
                 # -----------------------------
 
