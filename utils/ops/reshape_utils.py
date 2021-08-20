@@ -1,6 +1,7 @@
 import numpy as np
 
-__all__ = ['batch', 'split', 'nd_pad', 'images_to_grid', 'grid_ground_truth']
+__all__ = ['batch', 'split', 'nd_pad',
+           'aligned_with', 'images_to_grid', 'grid_ground_truth']
 
 
 def batch(size: int, batch_size: int):
@@ -121,3 +122,24 @@ def grid_ground_truth(grid_img: np.ndarray, images: np.ndarray, pad_width: int,
         new_grid_img[s_h:e_h, :iw, :] = pad_img
 
     return new_grid_img
+
+
+def aligned_with(fids, sids, select=None, dtype=np.uint32):
+
+    size = len(sids)
+
+    aligned_sid = np.zeros((size,), dtype=dtype)
+
+    for i, sid in enumerate(sids):
+
+        index = np.where(fids == sid)[0]
+
+        if len(index) == 1:
+
+            aligned_sid[index[0]] = i
+
+    if select is not None:
+
+        return np.array(select)[aligned_sid]
+
+    return aligned_sid

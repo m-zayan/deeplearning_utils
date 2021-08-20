@@ -4,6 +4,8 @@ import glob
 
 import numpy as np
 
+import cv2
+
 from tqdm import tqdm
 
 from ..external.common import OS, Logger
@@ -20,9 +22,16 @@ __all__ = ['get']
 
 
 def get(dest: str, shape: Tuple[int, int] = (224, 224), batch_size: int = 64,
-        dname: str = 'lfw', prefix: str = 'data', shuffle: bool = False, random_state: int = None) -> str:
+        dname: str = 'lfw', prefix: str = 'data', shuffle: bool = False,
+        random_state: int = None, **kwargs) -> str:
+
+    # ---------------------------------------------------------------------
 
     # http://vis-www.cs.umass.edu/lfw
+
+    interpolation = kwargs.get('interpolation', cv2.INTER_AREA)
+
+    # ---------------------------------------------------------------------
 
     lfw_url = 'http://vis-www.cs.umass.edu/lfw/lfw.tgz'
 
@@ -32,11 +41,15 @@ def get(dest: str, shape: Tuple[int, int] = (224, 224), batch_size: int = 64,
     ddir = OS.realpath(ddir)
     ddir = OS.join(ddir, 'lfw')
 
+    # ---------------------------------------------------------------------
+
     image_path = glob.glob(ddir + '/*/*')
 
     if shuffle:
 
         aligned_shuffle([image_path], random_state=random_state)
+
+    # ---------------------------------------------------------------------
 
     size = len(image_path)
 
@@ -44,6 +57,8 @@ def get(dest: str, shape: Tuple[int, int] = (224, 224), batch_size: int = 64,
     Logger.info({'directory': ddir,
                  'size': size})
     Logger.set_line(length=60)
+
+    # ---------------------------------------------------------------------
 
     def lfw_load():
 
@@ -54,7 +69,9 @@ def get(dest: str, shape: Tuple[int, int] = (224, 224), batch_size: int = 64,
 
             for _i in tqdm(range(start, end)):
 
-                img = imread(image_path[_i], cvt=True, grayscale=False, size=shape)
+                img = imread(image_path[_i], cvt=True, grayscale=False,
+                             size=shape, interpolation=interpolation)
+
                 class_name = OS.splitdir(image_path[_i], -2)
 
                 _x.append(img)
@@ -65,6 +82,8 @@ def get(dest: str, shape: Tuple[int, int] = (224, 224), batch_size: int = 64,
 
             yield _data
 
+    # ---------------------------------------------------------------------
+
     dest = OS.realpath(dest)
     
     newdir = OS.join(dest, dname)
@@ -72,6 +91,8 @@ def get(dest: str, shape: Tuple[int, int] = (224, 224), batch_size: int = 64,
     if not OS.dir_exists(newdir):
 
         OS.make_dir(newdir)
+
+    # ---------------------------------------------------------------------
 
     lfw_data = lfw_load()
 
@@ -82,5 +103,7 @@ def get(dest: str, shape: Tuple[int, int] = (224, 224), batch_size: int = 64,
         path = OS.join(newdir, fname)
 
         save_as_npz(path, **data)
+
+    # ---------------------------------------------------------------------
 
     return newdir

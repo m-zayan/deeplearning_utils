@@ -2,7 +2,9 @@ from typing import Callable, Dict, Any
 
 import numpy as np
 
-from skimage import color
+from . import _abstract
+
+from ...ops.reshape_utils import aligned_with
 
 
 def __np_as_type__(dtype):
@@ -18,7 +20,7 @@ def __np_as_type__(dtype):
     return to_nbits
 
 
-class Meta:
+class Meta(_abstract.Meta):
 
     @staticmethod
     def __multi_level_map__(ref: dict, _id: str, nlevels: int, sep: str = '_',
@@ -106,39 +108,9 @@ class Meta:
         return ref
 
     @staticmethod
-    def parse_id(_id):
-
-        return '_'.join(_id.split('_')[:-1])
-
-    @staticmethod
-    def parse_ids(id_list):
-
-        return np.array(list(map(Meta.parse_id, id_list)))
-
-    @staticmethod
-    def aligned_ids(fids, sids):
-
-        size = len(sids)
-
-        aligned_sid = np.array([None] * size)
-
-        for i, sid in enumerate(sids):
-
-            index = np.where(fids == sid)[0]
-
-            if len(index) == 1:
-
-                aligned_sid[index[0]] = i
-
-        return aligned_sid
-
-    @staticmethod
     def ids_xy_format(data_ids, ann_ids):
 
-        fids = Meta.parse_ids(data_ids)
-        sids = Meta.parse_ids(ann_ids)
-
-        return fids, Meta.aligned_ids(fids, sids)
+        return data_ids, aligned_with(data_ids, ann_ids, ann_ids)
 
 
 class Annotation:
@@ -199,5 +171,3 @@ class Annotation:
             mview1d[i] = Annotation.segmentation_level(iview1d[i])
 
         return mask
-
-    label_to_rgb: Callable = color.label2rgb

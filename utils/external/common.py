@@ -1,4 +1,4 @@
-from typing import Tuple, List, Dict, Callable, Any, Union
+from typing import Tuple, List, Dict, Callable, Any, Union, Generator
 
 import sys
 import os
@@ -104,6 +104,29 @@ class Logger:
         Logger.info(Formatter.BLUE + '=' * length + Formatter.END)
 
     @staticmethod
+    def wait_key(message: str, key_value: str, valid_keys: list) -> [None, bool]:
+
+        Logger.warning(message, end=':')
+
+        ok = input()
+
+        if ok.lower() == key_value:
+
+            return True
+
+        elif ok in valid_keys:
+
+            Logger.fail('Aborted!')
+
+            return False
+
+        else:
+
+            Logger.fail(f'key={key_value} is invalid, Aborted!')
+
+            return None
+
+    @staticmethod
     def __format_args__(*args) -> str:
 
         _format = '{}, {}' * (len(args) // 2)
@@ -201,13 +224,37 @@ class OS:
 
         fext = OS.splitext(path)[-1]
 
-        for ext in ext_list:
+        if fext in ext_list:
 
-            if fext == ext:
-
-                return True
+            return True
 
         return False
+
+    @staticmethod
+    def rfind_ext(path: str, ext_list: list, include_ext=True,
+                  join=False) -> Generator[Tuple[str, str, str], None, None]:
+
+        for (dirpath, _, filenames) in os.walk(path):
+
+            for i in range(len(filenames)):
+
+                fname, fext = OS.splitext(filenames[i])
+
+                if fext in ext_list:
+
+                    ret = (dirpath, fname)
+
+                    if include_ext:
+
+                        ret += (fext, )
+
+                    if join:
+
+                        yield OS.join(*ret)
+
+                    else:
+
+                        yield ret
 
     @staticmethod
     def file_at(path: str, *args) -> str:
@@ -311,6 +358,7 @@ class Terminal:
                 if kwargs.get('as_root', False):
 
                     if kwargs.get('password', None) is None:
+
                         raise ValueError(f'password=?, is required {signature}')
 
                     command = f'echo {kwargs["password"]} | sudo -S {command}'
@@ -322,6 +370,7 @@ class Terminal:
                 bash_dir = os.environ.get('bash')
 
                 if bash_dir is None:
+
                     raise InvalidConfigurations('bash environmental variable doesn\'t exist')
 
                 output = process.check_output([bash_dir, '-c', command], shell=True)
@@ -342,6 +391,7 @@ class Terminal:
             output = output.decode()
 
         if multi_outputs:
+
             output = output.split(multi_output_sep)
 
         return output

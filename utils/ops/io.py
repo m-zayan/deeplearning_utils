@@ -23,14 +23,17 @@ def imread(path: str, cvt: bool = False, grayscale: bool = False,
     flag = cv2.IMREAD_UNCHANGED
 
     if grayscale:
+
         flag = cv2.IMREAD_GRAYSCALE
 
     img = cv2.imread(path, flag)
 
     if cvt:
+
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     if size:
+
         img = cv2.resize(img, dsize=size, interpolation=interpolation)
 
     return img
@@ -89,6 +92,10 @@ def save_as_npz(filename, **kwargs):
     np.savez(f'{filename}.npz', **kwargs)
 
 
-def load_npz(filename, **kwargs):
+def load_npz(filename, as_dict=False, **kwargs):
+
+    if as_dict:
+
+        return dict(np.load(f'{filename}.npz', **kwargs))
 
     return np.load(f'{filename}.npz', **kwargs)

@@ -2,6 +2,8 @@ from typing import Tuple, Dict, Callable, Union, Any
 
 from threading import Thread
 
+from copy import deepcopy
+
 import numpy as np
 
 import cv2
@@ -22,14 +24,18 @@ from ..external.handlers.requests import Chrome
 
 from ..ops.io import pil_decode_image, cv_decode_image, save_as_npz
 
-from ..ops.reshape_utils import batch
+from ..ops.reshape_utils import batch, aligned_with
 
 from ..ops.random import aligned_shuffle
+
+from . import load
+
+__all__ = ['Info', 'get', 'cityscapes_download']
 
 
 class Info:
 
-    panoptic_parts = {'packid': 35, 'name': 'panoptic_parts', 'size': '465 MB', 'type': 'annotation',
+    panoptic_parts = {'packid': 35, 'name': 'panoptic_parts', 'size': '465 MB', 'type': 'images',
                       'split': ['train', 'val'], 'fname': 'gtFinePanopticParts_trainval.zip'}
 
     left_view = {'packid': 3, 'name': 'left_8_bit', 'size': '11 GB', 'type': 'images',
@@ -42,14 +48,35 @@ class Info:
 
     cache_dir = './cache/cityscapes'
 
+    @staticmethod
+    def get_alignment_meta(src: str, dname: str):
 
-def parse_split(path, **kwargs):
+        alignment_meta = load.meta(src, dname)['alignment_meta'].item()
 
-    index = kwargs.get('index', 1)
+        for key in alignment_meta:
 
-    split_type = OS.splitdir(path, index)
+            alignment_meta[key] = np.array(alignment_meta[key])
 
-    return split_type
+        return alignment_meta
+
+    @staticmethod
+    def parse_id(_id):
+
+        return '_'.join(_id.split('_')[:-1])
+
+    @staticmethod
+    def parse_ids(id_list):
+
+        return np.array(list(map(Info.parse_id, id_list)))
+
+    @staticmethod
+    def parse_split(path, **kwargs):
+
+        index = kwargs.get('index', 1)
+
+        split_type = OS.splitdir(path, index)
+
+        return split_type
 
 
 def download_request(username, password, packid, load_timeout) -> Tuple[str, Callable]:
@@ -172,7 +199,16 @@ def get(username: str, password: str, info: Dict[Any, Any], dest: str, shape: Un
 
     cv_decode = kwargs.get('cv_decode', False)
 
-    # ---------------------------------------------------------------------
+    meta_fname = kwargs.get('meta_fname', 'meta')
+
+    # load.alignment_meta(...)
+    alignment_meta = kwargs.get('alignment_meta', {})
+
+    # -------------------------------------,--------------------------------
+
+    meta = {'alignment_meta': None}
+
+    # -------------------------------------,--------------------------------
 
     if batch_size is None:
 
@@ -212,18 +248,58 @@ def get(username: str, password: str, info: Dict[Any, Any], dest: str, shape: Un
     size = len(finfo_list)
 
     path_mp = {}
+    ids_mp = {}
 
     for i in range(size):
 
         fname = finfo_list[i].filename
 
-        fst = parse_split(fname)
+        fst = Info.parse_split(fname)
 
         if fst not in path_mp:
 
             path_mp[fst] = []
+            ids_mp[fst] = []
 
         path_mp[fst].append(fname)
+
+        # subclassing Info, must be sufficient to change the alignment criteria
+        ids_mp[fst].append(Info.parse_id(OS.filename(fname)))
+
+    # ---------------------------------------------------------------------
+
+    # new --> alignment_meta
+    meta['alignment_meta'] = deepcopy(ids_mp)
+
+    # ---------------------------------------------------------------------
+
+    # old --> alignment_meta
+    for key in alignment_meta:
+
+        if key in ids_mp:
+
+            if len(ids_mp[key]) == len(alignment_meta[key]):
+
+                path_mp[key] = aligned_with(alignment_meta[key], ids_mp[key], path_mp[key])
+                ids_mp[key] = aligned_with(alignment_meta[key], ids_mp[key], ids_mp[key])
+
+            elif len(alignment_meta) > 0:
+
+                Logger.set_line(length=60)
+                Logger.fail('Aligning aborted!')
+                Logger.set_line(length=60)
+
+                ok = Logger.wait_key('Would you like to continue without considering the alignment?',
+                                     'y', ['n', 'y'])
+
+                if not ok:
+
+                    return cache_dir
+
+                else:
+
+                    # joke! <--> should be erased later
+                    Logger.warning('Ah, thanks I was not sure if it\'s gonna works properly :)')
 
     # ---------------------------------------------------------------------
 
@@ -241,15 +317,13 @@ def get(username: str, password: str, info: Dict[Any, Any], dest: str, shape: Un
 
         for start, end in batch(n_examples, bsize):
 
-            _data: Dict[str, Union[list, np.ndarray]] = {'x': [], 'id': [], 'size': []}
+            _data: Dict[str, Union[list, np.ndarray]] = {'x': [],
+                                                         'id': ids_mp[_split_type][start:end],
+                                                         'size': []}
 
             for _j in tqdm(range(start, end)):
 
                 _path = path_mp[_split_type][_j]
-
-                # -----------------------------
-
-                _id = OS.filename(_path)
 
                 # -----------------------------
 
@@ -274,7 +348,6 @@ def get(username: str, password: str, info: Dict[Any, Any], dest: str, shape: Un
                     _x = cv2.resize(_x, shape, interpolation=interpolation)
 
                 _data['x'].append(_x)
-                _data['id'].append(_id)
                 _data['size'].append(_size)
 
             for _key in _data:
@@ -302,6 +375,12 @@ def get(username: str, password: str, info: Dict[Any, Any], dest: str, shape: Un
         if (not OS.dir_exists(split_dir)) and (len(path_mp[split]) > 0):
 
             OS.make_dir(split_dir)
+
+    # ---------------------------------------------------------------------
+
+    path = OS.join(newdir, meta_fname)
+
+    save_as_npz(path, **meta)
 
     # ---------------------------------------------------------------------
 

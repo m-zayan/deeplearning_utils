@@ -1,3 +1,5 @@
+from typing import Callable
+
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -8,7 +10,10 @@ from sklearn.manifold import TSNE
 from .random import random_indices
 from .reshape_utils import images_to_grid, grid_ground_truth
 
-__all__ = ['plot_random', 'plot', 'plot_latent', 'grid_plot']
+from skimage import color
+
+__all__ = ['plot_random', 'plot', 'plot_latent',
+           'grid_plot', 'label_to_rgb']
 
 
 def plot_random(x: np.ndarray, y: np.ndarray = None, nrows: int = 6, ncols: int = 18, figsize: tuple = None,
@@ -118,3 +123,8 @@ def grid_plot(images: np.ndarray, nrows: int, ncols: int, pad: int = 5,
 
     ax.imshow(grid_img)
     ax.axis('off')
+
+
+# =====================================================================================================================
+
+label_to_rgb: Callable = color.label2rgb
