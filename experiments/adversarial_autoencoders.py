@@ -2,10 +2,12 @@ import tensorflow as tf
 
 from tensorflow.keras import optimizers
 
-from tensorflow.keras.layers import Input, Dense, Activation, Concatenate, Dropout
+from tensorflow.keras.layers import Input, Dense, Activation, Concatenate, GaussianDropout
 from tensorflow.keras.models import Model
 
 from . import functional
+
+from utils.external.common import OS
 
 __all__ = ['AdversarialAutoencoder']
 
@@ -22,9 +24,12 @@ class AdversarialAutoencoder:
 
         self.n_classes = n_classes
 
-        self.n_clusters = kwargs.pop('n_clusters', n_classes)
-
         self.dropout_rate = kwargs.pop('input_dropout_rate', None)
+
+        self.encoder_activation = kwargs.pop('encoder_activation', 'relu')
+
+        self.style_interloper_units = kwargs.pop('style_interloper_units', 1)
+        self.y_interloper_units = kwargs.pop('style_interloper_units', 1)
 
         # -------------------------
 
@@ -41,6 +46,9 @@ class AdversarialAutoencoder:
 
         # -------------------------
 
+        self.__model_attr__ = ['base_encoder',  'style_discriminator', 'y_discriminator',
+                               'decoder', 'style_interloper', 'y_interloper']
+
     def style_gaussian_sample(self, batch_size, mu=0.0, sigma=1.0, seed=None):
 
         sample = tf.random.normal((batch_size, self.style_dim), mean=mu, stddev=sigma, seed=seed)
@@ -49,7 +57,7 @@ class AdversarialAutoencoder:
 
     def cat_multinomial_sample(self, batch_size, seed=None):
 
-        sample = tf.random.uniform((batch_size,), minval=0, maxval=self.n_clusters, dtype=tf.int32, seed=seed)
+        sample = tf.random.uniform((batch_size,), minval=0, maxval=self.n_classes, dtype=tf.int32, seed=seed)
 
         return sample
 
@@ -57,17 +65,17 @@ class AdversarialAutoencoder:
 
         sample = self.cat_multinomial_sample(batch_size, seed)
 
-        sample = tf.one_hot(sample, self.n_clusters)
+        sample = tf.one_hot(sample, self.n_classes)
 
         return sample
 
     def encoder_block(self, inputs):
 
         z = Dense(self.hidden_dim)(inputs)
-        z = Activation('relu')(z)
+        z = Activation(self.encoder_activation)(z)
 
         z = Dense(self.hidden_dim)(z)
-        z = Activation('relu')(z)
+        z = Activation(self.encoder_activation)(z)
 
         return z
 
@@ -79,7 +87,7 @@ class AdversarialAutoencoder:
 
         if self.dropout_rate is not None:
 
-            z = Dropout(self.dropout_rate)(inputs)
+            z = GaussianDropout(self.dropout_rate)(inputs)
 
         else:
 
@@ -139,7 +147,7 @@ class AdversarialAutoencoder:
         z = self.encoder_block(inputs)
 
         # e.g. discrete-style
-        new_style = Dense(self.style_dim)(z)
+        new_style = Dense(self.style_interloper_units)(z)
         new_style = Activation(activation, name='imposed_z')(new_style)
 
         self.style_interloper = Model(inputs, new_style)
@@ -148,12 +156,12 @@ class AdversarialAutoencoder:
 
         """ phase [2]: q(y|x) matches categorical distribution """
 
-        inputs = Input(shape=(self.n_classes,))
+        inputs = Input(shape=(self.n_classes, ))
 
         z = self.encoder_block(inputs)
 
         # categorical distribution
-        new_style = Dense(self.n_clusters)(z)
+        new_style = Dense(self.y_interloper_units)(z)
         new_style = Activation(activation, name='imposed_y')(new_style)
 
         self.y_interloper = Model(inputs, new_style)
@@ -187,8 +195,10 @@ class AdversarialAutoencoder:
         else:
 
             learning_rate = kwargs.pop('style_discriminator_lr', 1e-3)
+            beta_1 = kwargs.pop('style_discriminator_beta_1', 0.9)
+            beta_2 = kwargs.pop('style_discriminator_beta_2', 0.999)
 
-            optimizer = optimizers.Adam(learning_rate=learning_rate)
+            optimizer = optimizers.Adam(learning_rate=learning_rate, beta_1=beta_1, beta_2=beta_2)
 
         self.style_discriminator.compile(optimizer=optimizer)
 
@@ -204,8 +214,10 @@ class AdversarialAutoencoder:
         else:
 
             learning_rate = kwargs.pop('y_discriminator_lr', 1e-3)
+            beta_1 = kwargs.pop('y_discriminator_beta_1', 0.9)
+            beta_2 = kwargs.pop('y_discriminator_beta_2', 0.999)
 
-            optimizer = optimizers.Adam(learning_rate=learning_rate)
+            optimizer = optimizers.Adam(learning_rate=learning_rate, beta_1=beta_1, beta_2=beta_2)
 
         self.y_discriminator.compile(optimizer=optimizer)
 
@@ -221,8 +233,10 @@ class AdversarialAutoencoder:
         else:
 
             learning_rate = kwargs.pop('decoder_lr', 1e-3)
+            beta_1 = kwargs.pop('decoder_beta_1', 0.9)
+            beta_2 = kwargs.pop('decoder_beta_2', 0.999)
 
-            optimizer = optimizers.Adam(learning_rate=learning_rate)
+            optimizer = optimizers.Adam(learning_rate=learning_rate, beta_1=beta_1, beta_2=beta_2)
 
         self.decoder.compile(optimizer=optimizer)
 
@@ -238,8 +252,10 @@ class AdversarialAutoencoder:
         else:
 
             learning_rate = kwargs.pop('style_interloper_lr', 1e-3)
+            beta_1 = kwargs.pop('style_interloper_beta_1', 0.9)
+            beta_2 = kwargs.pop('style_interloper_beta_2', 0.999)
 
-            optimizer = optimizers.Adam(learning_rate=learning_rate)
+            optimizer = optimizers.Adam(learning_rate=learning_rate, beta_1=beta_1, beta_2=beta_2)
 
         self.style_interloper.compile(optimizer=optimizer)
 
@@ -255,8 +271,10 @@ class AdversarialAutoencoder:
         else:
 
             learning_rate = kwargs.pop('y_interloper_lr', 1e-3)
+            beta_1 = kwargs.pop('y_interloper_beta_1', 0.9)
+            beta_2 = kwargs.pop('y_interloper_beta_2', 0.999)
 
-            optimizer = optimizers.Adam(learning_rate=learning_rate)
+            optimizer = optimizers.Adam(learning_rate=learning_rate, beta_1=beta_1, beta_2=beta_2)
 
         self.y_interloper.compile(optimizer=optimizer)
 
@@ -382,7 +400,7 @@ class AdversarialAutoencoder:
 
         if sparse_cat:
 
-            arbitrary_cat = tf.one_hot(arbitrary_cat, self.n_clusters)
+            arbitrary_cat = tf.one_hot(arbitrary_cat, self.n_classes)
 
         # -------------------------------------------------------
 
@@ -426,7 +444,7 @@ class AdversarialAutoencoder:
 
             x_posterior = self.decoder_predict(x_prior, training=True)
 
-            loss = functional.reconstruction_loss(x_prior, x_posterior)
+            loss = functional.euclidean_norm_loss(x_prior, x_posterior)
 
         # -------------------------------------------------------
 
@@ -441,3 +459,43 @@ class AdversarialAutoencoder:
         # -------------------------------------------------------
 
         return {'loss': loss}
+
+    def save_checkpoint(self, working_dir):
+
+        working_dir = OS.realpath(working_dir)
+
+        if not OS.dir_exists(working_dir):
+
+            OS.make_dirs(working_dir)
+
+        for attr_name in self.__model_attr__:
+
+            model = getattr(self,  attr_name)
+
+            if model is None:
+
+                raise ValueError(f'{attr_name}=None, consider using .build(...)')
+
+            path = OS.join(working_dir, f'{attr_name}.h5')
+
+            model.save(path)
+
+    def load_checkpoint(self, working_dir):
+
+        working_dir = OS.realpath(working_dir)
+
+        if not OS.dir_exists(working_dir):
+
+            OS.make_dirs(working_dir)
+
+        for attr_name in self.__model_attr__:
+
+            model = getattr(self, attr_name)
+
+            if model is None:
+
+                raise ValueError(f'{attr_name}=None, consider using .build(...)')
+
+            path = OS.join(working_dir, f'{attr_name}.h5')
+
+            model.load_weights(path)

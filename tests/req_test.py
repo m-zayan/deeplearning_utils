@@ -1,6 +1,6 @@
 from utils.external import handlers
 
-handlers.reinstall_dependencies(notebook=False)
+handlers.install_dependencies(notebook=False)
 
 from utils.external.handlers.requests import Chrome
 

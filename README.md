@@ -121,7 +121,7 @@ flowers.get(info, dest=working_dir, shape=(224, 224),
 alignment_meta = flowers.Info.get_alignment_meta(working_dir, 
                                                  dname='flowers')
 
-info = flowers.Info.masks
+info = flowers.Info.segments
 
 # segments | i.e. shuffle=True - will be ignored due to alignment
 flowers.get(info, dest=working_dir, shape=(224, 224), 

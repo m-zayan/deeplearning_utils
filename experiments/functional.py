@@ -1,14 +1,13 @@
 from tensorflow.keras import backend, losses
 
-__all__ = ['reconstruction_loss', 'cross_entropy_loss']
+__all__ = ['euclidean_norm_loss', 'cross_entropy_loss']
 
 
-def reconstruction_loss(x_true, x_pred):
+def euclidean_norm_loss(y_true, y_pred):
 
-    loss = 0.5 * (x_pred - x_true) ** 2
-    loss = backend.sum(loss, axis=-1)
+    loss = 0.5 * (y_true - y_pred) ** 2
 
-    return backend.mean(loss)
+    return backend.sum(loss)
 
 
 def cross_entropy_loss(y_true, y_pred):

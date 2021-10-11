@@ -5,15 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sklearn.manifold import TSNE
-
 from .random import random_indices
 from .reshape_utils import images_to_grid, grid_ground_truth
 
 from skimage import color
 
 __all__ = ['plot_random', 'plot', 'plot_latent',
-           'grid_plot', 'label_to_rgb']
+           'grid_plot', 'label_to_rgb', 'nbins_cmap']
 
 
 def plot_random(x: np.ndarray, y: np.ndarray = None, nrows: int = 6, ncols: int = 18, figsize: tuple = None,
@@ -54,10 +52,10 @@ def plot_random(x: np.ndarray, y: np.ndarray = None, nrows: int = 6, ncols: int 
 
             axs[i].set_title(f'{labels[i]}')
 
-        axs[i].grid('off')
+        axs[i].grid(None)
         axs[i].axis('off')
 
-    return fig
+    return fig, axs
 
 
 def plot(x: np.ndarray, y: np.ndarray = None, nrows: int = 6, ncols: int = 18, figsize: tuple = None):
@@ -77,29 +75,63 @@ def plot(x: np.ndarray, y: np.ndarray = None, nrows: int = 6, ncols: int = 18, f
 
             axs[i].set_title(f'{y[i]}')
 
-        axs[i].grid('off')
+        axs[i].grid(None)
         axs[i].axis('off')
 
-    return fig
+    return fig, axs
 
 
-def plot_latent(latent: np.ndarray, labels: np.ndarray = None, n_iter: int = 1000,
-                figsize: tuple = (15, 10), random_state: int = None):
+def nbins_cmap(n, name='tab10'):
 
-    n_colors = 1
+    cmap = plt.cm.get_cmap(name)
+
+    colors = np.linspace(0, 1, n)
+
+    colors = cmap(colors)
+
+    return colors
+
+
+def plot_latent(latent2d: np.ndarray, labels: np.ndarray = None,
+                figsize: tuple = (10, 8), marker='o', marker_size=20.0, **kwargs):
+
+    # -----------------------------------------------------------------------------------
+
+    n_classes = 1
 
     if labels is not None:
 
-        n_colors = len(np.unique(labels))
+        classes = np.unique(labels)
 
-    embedded = TSNE(n_components=2, n_iter=n_iter, random_state=random_state).fit_transform(latent)
+        n_classes = len(classes)
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    palette = sns.color_palette("tab10", n_colors=n_colors)
-    sns.scatterplot(x=embedded[:, 0], y=embedded[:, 1], hue=labels, palette=palette, ax=ax)
+    palette = sns.color_palette('tab10', n_colors=n_classes)
 
-    return fig
+    ax = sns.scatterplot(x=latent2d[:, 0], y=latent2d[:, 1], hue=labels, palette=palette,
+                         ax=ax, s=marker_size, marker=marker)
+
+    # -----------------------------------------------------------------------------------
+
+    grid = kwargs.pop('grid', None)
+
+    anchor_legend = kwargs.pop('anchor_legend', (0.0, -0.05))
+
+    loc_legend = kwargs.pop('loc_legend', 'lower left')
+    ncols_legend = kwargs.pop('ncols_legend', n_classes)
+
+    axis_off = kwargs.pop('axis_off', True)
+
+    ax.legend(loc=loc_legend, ncol=ncols_legend, bbox_to_anchor=anchor_legend)
+
+    ax.grid(grid)
+
+    if axis_off:
+
+        fig.gca().set_axis_off()
+
+    return fig, ax
 
 
 def grid_plot(images: np.ndarray, nrows: int, ncols: int, pad: int = 5,

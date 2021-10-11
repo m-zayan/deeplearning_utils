@@ -10,7 +10,8 @@ from ..external.common import OS
 
 from ..ops.io import load_npz
 
-__all__ = ['num_of_batches', 'npz_batch', 'npz_nbatch']
+__all__ = ['num_of_batches', 'npz_batch', 'npz_nbatch', 'meta',
+           'mnist', 'cifar10', 'cifar100']
 
 
 def num_of_batches(src: str, dname: str) -> int:
@@ -77,5 +78,41 @@ def mnist(as_1d=True, rescale=255.0):
 
         x_train = x_train.reshape(-1, 784)
         x_test = x_test.reshape(-1, 784)
+
+    return (x_train, y_train), (x_test, y_test)
+
+
+def cifar10(as_1d=True, rescale=255.0):
+
+    (x_train, y_train), (x_test, y_test) = datasets.cifar10.load_data()
+
+    x_train = x_train.astype('float32')
+    x_test = x_test.astype('float32')
+
+    x_train /= rescale
+    x_test /= rescale
+
+    if as_1d:
+
+        x_train = x_train.reshape(-1, 3072)
+        x_test = x_test.reshape(-1, 3072)
+
+    return (x_train, y_train), (x_test, y_test)
+
+
+def cifar100(as_1d=True, rescale=255.0):
+
+    (x_train, y_train), (x_test, y_test) = datasets.cifar100.load_data()
+
+    x_train = x_train.astype('float32')
+    x_test = x_test.astype('float32')
+
+    x_train /= rescale
+    x_test /= rescale
+
+    if as_1d:
+
+        x_train = x_train.reshape(-1, 3072)
+        x_test = x_test.reshape(-1, 3072)
 
     return (x_train, y_train), (x_test, y_test)

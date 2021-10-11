@@ -1,6 +1,6 @@
 import numpy as np
 
-__all__ = ['batch', 'split', 'nd_pad',
+__all__ = ['batch', 'split', 'nd_pad', 'concat_vertical',
            'aligned_with', 'images_to_grid', 'grid_ground_truth']
 
 
@@ -143,3 +143,12 @@ def aligned_with(fids, sids, select=None, dtype=np.uint32):
         return np.array(select)[aligned_sid]
 
     return aligned_sid
+
+
+def concat_vertical(*a) -> np.ndarray:
+
+    output = np.stack(a, axis=0)
+    output = np.transpose(output, axes=[1, 0, *range(2, output.ndim)])
+    output = output.reshape(-1, *output.shape[2:])
+
+    return output

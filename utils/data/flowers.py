@@ -32,8 +32,8 @@ class Info:
     images = {'name': 'flowers', 'fname': '102flowers.tgz',
               'dname': 'jpg', 'size': '328 MB', 'type': 'image'}
 
-    masks = {'name': 'flowers_mask', 'fname': '102segmentations.tgz',
-             'dname': 'segmim', 'size': '194 MB', 'type': 'image'}
+    segments = {'name': 'flowers_segments', 'fname': '102segmentations.tgz',
+                'dname': 'segmim', 'size': '194 MB', 'type': 'image'}
 
     labels = {'name': 'image_labels', 'fname': 'imagelabels.mat',
               'size': '512 B', 'type': '.mat'}
