@@ -4,7 +4,7 @@ import numpy as np
 
 from . import _abstract
 
-from ...ops.reshape_utils import aligned_with
+from ...ops.reshape import aligned_with
 
 
 def __np_as_type__(dtype):

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from .random import random_indices
-from .reshape_utils import images_to_grid, grid_ground_truth
+from .reshape import images_to_grid, grid_ground_truth
 
 from skimage import color
 

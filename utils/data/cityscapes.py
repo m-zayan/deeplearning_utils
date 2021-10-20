@@ -1,6 +1,4 @@
-from typing import Tuple, Dict, Callable, Union, Any
-
-from threading import Thread
+from typing import Tuple, Dict, Union, Any
 
 from copy import deepcopy
 
@@ -18,13 +16,13 @@ if not handlers.__selenium_installed__():
                            'handlers.install_dependencies(...)')
 
 
-from ..external.common import OS, IO, Logger, Time, StatusWatch
+from ..external.common import OS, IO, Logger
 
 from ..external.handlers.requests import Chrome
 
 from ..ops.io import pil_decode_image, cv_decode_image, save_as_npz
 
-from ..ops.reshape_utils import batch, aligned_with
+from ..ops.reshape import batch, aligned_with
 
 from ..ops.random import aligned_shuffle
 
@@ -79,9 +77,14 @@ class Info:
         return split_type
 
 
-def download_request(username, password, packid, load_timeout) -> Tuple[str, Callable]:
+def cityscapes_download(username, password, packid, **kwargs) -> str:
 
-    # ---------------------------------------------------------
+    # ----------------------------------------------------
+
+    load_timeout = kwargs.get('load_timeout', 60)
+    logs_delay = kwargs.get('logs_delay', 5)
+
+    # -----------------------------------------------------
 
     # https://www.cityscapes-dataset.com/downloads/
 
@@ -96,10 +99,7 @@ def download_request(username, password, packid, load_timeout) -> Tuple[str, Cal
     # ---------------------------------------------------------
 
     chrome = Chrome()
-
-    chrome.set_download_directory(cache_dir)
-
-    chrome.build()
+    chrome.set_download_directory(cache_dir, extend_session=True)
 
     # ---------------------------------------------------------
 
@@ -109,77 +109,13 @@ def download_request(username, password, packid, load_timeout) -> Tuple[str, Cal
 
     # ---------------------------------------------------------
 
-    def get_file() -> None:
-
-        durl = f'https://www.cityscapes-dataset.com/file-handling/?packageID={packid}'
-
-        chrome.get(durl, load_timeout=load_timeout)
+    durl = f'https://www.cityscapes-dataset.com/file-handling/?packageID={packid}'
 
     # ---------------------------------------------------------
 
-    return cache_dir, get_file
+    cache_dir = chrome.download(url=durl, cache_dir=cache_dir, load_timeout=load_timeout, logs_delay=logs_delay)
 
-
-def watch_download(cache_dir) -> None:
-
-    Logger.set_line(length=60)
-
-    on_watch = StatusWatch.download(cache_dir)
-
-    ongoing, current_size = True, 0.0
-
-    while ongoing:
-
-        ongoing, current_size = on_watch(int)
-
-        if ongoing:
-
-            Logger.info_r(current_size)
-
-    Logger.info('\n', end='')
-    Logger.set_line(length=60)
-
-
-def cityscapes_download(username, password, packid, **kwargs) -> str:
-
-    # ----------------------------------------------------
-
-    load_timeout = kwargs.get('load_timeout', 60)
-    logs_delay = kwargs.get('logs_delay', 5)
-
-    # -----------------------------------------------------
-
-    cache_dir, get_file = download_request(username, password, packid, load_timeout)
-
-    if len(OS.listdir(cache_dir)):
-
-        Logger.set_line(length=60)
-        Logger.fail('A non-empty caching directory is not supported')
-        Logger.set_line(length=60)
-        Logger.warning('Download aborted!')
-        Logger.set_line(length=60)
-
-        return cache_dir
-
-    # -----------------------------------------------------
-
-    download_th = Thread(target=get_file, args=())
-    watch_th = Thread(target=watch_download, args=(cache_dir,))
-
-    # -----------------------------------------------------
-
-    download_th.start()
-
-    Time.sleep(max(5, logs_delay))
-
-    watch_th.start()
-
-    # -----------------------------------------------------
-
-    download_th.join()
-    watch_th.join()
-
-    # -----------------------------------------------------
+    # ---------------------------------------------------------
 
     return cache_dir
 

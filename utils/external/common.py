@@ -28,14 +28,13 @@ import requests
 
 from .exceptions import InvalidConfigurations
 
-
 __all__ = ['Logger', 'OS', 'Sys', 'Terminal', 'Reader', 'Writer', 'IO',
            'Time', 'ResManger', 'StatusWatch']
 
 OS_ROOT_DIR = str(Path.home()) + '/../../'
 
 
-def invalid_arguments(func: Callable) -> Callable:
+def validate_arguments(func: Callable) -> Callable:
 
     def inner(*args, **kwargs) -> None:
 
@@ -45,7 +44,7 @@ def invalid_arguments(func: Callable) -> Callable:
 
         except TypeError as err:
 
-            Logger.fail('invalid_arguments::', func.__name__, ', arguments : ')
+            Logger.fail('Invalid arguments::', func.__name__, ', arguments : ')
             Logger.error(err)
 
     return inner
@@ -132,7 +131,6 @@ class Logger:
         _format = '{}, {}' * (len(args) // 2)
 
         if len(args) % 2:
-
             _format += '{}'
 
         return _format.format(*args)
@@ -173,7 +171,7 @@ class OS:
     def realpath(path: str) -> str:
 
         return os.path.realpath(path)
-      
+
     @staticmethod
     def join(*args) -> str:
 
@@ -205,7 +203,6 @@ class OS:
         fname = path.split(sep)[-1]
 
         if not ext_include:
-
             return OS.splitext(fname)[0]
 
         return fname
@@ -219,13 +216,11 @@ class OS:
     def match_ext(path: str, ext_list: Union[None, list] = None) -> bool:
 
         if ext_list is None:
-
             return True
 
         fext = OS.splitext(path)[-1]
 
         if fext in ext_list:
-
             return True
 
         return False
@@ -245,8 +240,7 @@ class OS:
                     ret = (dirpath, fname)
 
                     if include_ext:
-
-                        ret += (fext, )
+                        ret += (fext,)
 
                     if join:
 
@@ -262,7 +256,6 @@ class OS:
         for i in range(len(args)):
 
             if path in os.listdir(args[i]):
-
                 return args[i]
 
         raise ValueError(f'file : {path}, is not found')
@@ -271,7 +264,6 @@ class OS:
     def file_size(path) -> float:
 
         if not OS.file_exists(path):
-
             raise ValueError(f'file: {OS.filename(path)}, is not found, or not a regular file')
 
         return os.path.getsize(path)
@@ -285,6 +277,11 @@ class OS:
     def linux() -> bool:
 
         return 'linux' in Sys.platform()
+
+    @staticmethod
+    def environ(name) -> Any:
+
+        return os.environ.get(name)
 
 
 class Sys:
@@ -358,7 +355,6 @@ class Terminal:
                 if kwargs.get('as_root', False):
 
                     if kwargs.get('password', None) is None:
-
                         raise ValueError(f'password=?, is required {signature}')
 
                     command = f'echo {kwargs["password"]} | sudo -S {command}'
@@ -370,7 +366,6 @@ class Terminal:
                 bash_dir = os.environ.get('bash')
 
                 if bash_dir is None:
-
                     raise InvalidConfigurations('bash environmental variable doesn\'t exist')
 
                 output = process.check_output([bash_dir, '-c', command], shell=True)
@@ -391,7 +386,6 @@ class Terminal:
             output = output.decode()
 
         if multi_outputs:
-
             output = output.split(multi_output_sep)
 
         return output
@@ -442,9 +436,7 @@ class Reader:
 
     @staticmethod
     def json_to_dict(json_filename: str, **kwargs) -> Union[None, Dict[Any, Any]]:
-
         if not OS.file_exists(json_filename):
-
             Logger.warning(f'File: {json_filename} Doesn\'t Exist')
 
             return None
@@ -452,7 +444,6 @@ class Reader:
         content: dict
 
         with open(json_filename, 'r') as buffer:
-
             content = json.load(buffer, **kwargs)
 
         return content
@@ -638,7 +629,7 @@ class IO:
 
         except KeyError as err:
 
-            print(err, '\nAvailable files : \n', '=' * 50,  files.filelist)
+            print(err, '\nAvailable files : \n', '=' * 50, files.filelist)
 
         bytes_data = d_bytes.readlines()
 
@@ -658,7 +649,6 @@ class IO:
 
                 if (not fileinfo.is_dir() or include_dirs) \
                         and OS.match_ext(fileinfo.filename, ext_list):
-
                     _filelist.append(fileinfo)
 
             return _filelist
@@ -687,7 +677,6 @@ class Time:
 
     @staticmethod
     def now(sep: str = ':') -> str:
-
         return datetime.now().strftime(f'%I{sep}%M{sep}%S')
 
     @staticmethod
@@ -720,7 +709,6 @@ class ResManger:
         for key, value in vars(cls).items():
 
             if isinstance(value, instance):
-
                 vars_name[value] = key
 
         return vars_name

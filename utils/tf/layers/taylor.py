@@ -1,4 +1,5 @@
 import tensorflow as tf
+from tensorflow.keras.layers import Layer
 
 __all__ = ['NthOrderDiff', 'AutoTaylorExpansion']
 
@@ -52,7 +53,7 @@ class NthOrderDiff:
         self.y = None
 
 
-class AutoTaylorExpansion(tf.keras.layers.Layer):
+class AutoTaylorExpansion(Layer):
 
     def __init__(self, a, func, n_terms, *arg, **kwargs):
 
@@ -74,18 +75,19 @@ class AutoTaylorExpansion(tf.keras.layers.Layer):
     def fac(i):
         return tf.exp(tf.math.lgamma(i + 1.0))
 
-    def _find_expansion(self, inputs):
+    def _compute_expansion(self, inputs):
 
         diff = self._super_tape.diff_list
         expansion = []
 
-        def _cond(i):
+        def callable_cond(i):
 
             return i < self.n_terms
 
         def loop(i, cond):
 
             if not cond(i):
+
                 return
 
             p = tf.cast(i, dtype=tf.float32)
@@ -100,14 +102,14 @@ class AutoTaylorExpansion(tf.keras.layers.Layer):
 
             loop(i + 1, cond)
 
-        loop(0, _cond)
+        loop(0, callable_cond)
 
         expansion = tf.stack(expansion, axis=-1)
 
         return expansion
 
-    def call(self, inputs, *args, **kwargs):
+    def call(self, inputs, training=None):
 
-        expansion = self._find_expansion(inputs)
+        expansion = self._compute_expansion(inputs)
 
         return expansion

@@ -2,7 +2,8 @@ import numpy as np
 
 import tensorflow as tf
 
-from tensorflow.keras import backend as K
+from tensorflow.keras import backend
+from tensorflow.keras.layers import Layer
 
 import tensorflow_addons as tfa
 
@@ -47,7 +48,7 @@ class RandomTransformation:
     @staticmethod
     def tft_gaussian_noise(image, seed: int = None):
 
-        shape = K.shape(image)
+        shape = backend.shape(image)
 
         return image + tf.random.normal(shape, mean=0.0, stddev=xsigma(shape), seed=seed)
 
@@ -81,7 +82,7 @@ class RandomTransformation:
         return len(self.__td__)
 
 
-class ImageGenerator(tf.keras.layers.Layer):
+class ImageGenerator(Layer):
 
     def __init__(self, training=True, *args, **kwargs):
 
@@ -91,16 +92,13 @@ class ImageGenerator(tf.keras.layers.Layer):
 
         self.training = training
 
-    def call(self, inputs,  *args, **kwargs):
+    def call(self, inputs,  training=None):
 
-        if self.training:
+        def transform():
 
             outputs = self.tft(inputs)
-
             outputs = tf.ensure_shape(outputs, inputs.shape)
 
             return outputs
 
-        else:
-
-            return inputs
+        return backend.in_train_phase(transform, inputs, training=training)

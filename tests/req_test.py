@@ -1,13 +1,23 @@
-from utils.external import handlers
+# import cv2
+#
+# from utils.external import handlers
+#
+# # handlers.install_dependencies(notebook=True)
 
-handlers.install_dependencies(notebook=False)
+from utils.data import cityscapes
 
-from utils.external.handlers.requests import Chrome
 
-chrome = Chrome(install=False, notebook=False, password=None)
+username = '...'
+password = '...'
 
-chrome.driver.get('https://www.cityscapes-dataset.com/downloads/')
+batch_size = {'train': 1000}
 
-# chrome.__set_options__(headless=False)
+cityscapes.Info.cache_dir = './cache/cityscapes/panoptic_parts'
 
-print(chrome.driver.current_url)
+info = cityscapes.Info.panoptic_parts
+
+# cv_decode = True, runs up to 1.8x faster
+cityscapes.get(username, password, info, dest='./',
+               shape=(256, 128), batch_size=batch_size,
+               dname='left_view', prefix='data',
+               cv_decode=True)

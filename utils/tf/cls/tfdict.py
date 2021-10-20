@@ -28,6 +28,7 @@ class TFDict:
         nodes = self.tfd_graph.get_collection(name=key)
 
         if len(nodes) != 0:
+
             return nodes
 
         return self.find(key)
@@ -37,7 +38,9 @@ class TFDict:
         n = len(keys)
 
         def _add(i):
+
             if i >= n:
+
                 return
 
             self.add(keys[i], values[i])

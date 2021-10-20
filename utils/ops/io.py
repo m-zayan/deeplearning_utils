@@ -9,7 +9,7 @@ import numpy as np
 import cv2
 
 __all__ = ['write_image', 'imread', 'cv_decode_image', 'pil_decode_image',
-           'save_as_npy', 'load_npy', 'save_as_npz', 'load_npz']
+           'save_as_npy', 'load_npy', 'save_as_npz', 'load_npz', 'rle_encode', 'rle_decode']
 
 
 def write_image(path, image, *args, **kwargs):
@@ -99,3 +99,43 @@ def load_npz(filename, as_dict=False, **kwargs):
         return dict(np.load(f'{filename}.npz', **kwargs))
 
     return np.load(f'{filename}.npz', **kwargs)
+
+
+def rle_encode(mask: np.ndarray, mask_size: int) -> str:
+
+    """ run-length-encoding (RLE)"""
+
+    if mask.size != mask_size:
+
+        raise ValueError(f'Invalid mask, mask_size={mask.size}')
+
+    values = mask.ravel().astype('uint8')
+    values = np.concatenate([[0], values, [0]])
+
+    indices = np.where(values[1:] != values[:-1])[0] + 1
+    indices[1::2] -= indices[::2]
+
+    encoded = ' '.join(indices.astype('str'))
+
+    return encoded
+
+
+def rle_decode(rle_code: str, size: tuple):
+
+    """ run-length-decoding (RLE)"""
+
+    sequence = rle_code.split()
+
+    starts, lengths = [np.asarray(x, dtype=int) for x in (sequence[0:][::2], sequence[1:][::2])]
+
+    starts -= 1
+
+    ends = starts + lengths
+
+    mask = np.zeros(size[0] * size[1], dtype=np.uint8)
+
+    for l, r in zip(starts, ends):
+
+        mask[l:r] = 1
+
+    return mask.reshape(size)

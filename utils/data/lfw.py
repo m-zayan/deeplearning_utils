@@ -14,7 +14,7 @@ from ..tf.ops.io import download
 
 from ..ops.io import imread, save_as_npz
 
-from ..ops.reshape_utils import batch
+from ..ops.reshape import batch
 
 from ..ops.random import aligned_shuffle
 
