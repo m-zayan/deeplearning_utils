@@ -74,7 +74,7 @@ def nd_non_max_suppression(boxes, scores, max_output_size: int,
 
     mask_indices: np.ndarray | tf.Tensor,
 
-        ex. tf.ops.eval.grid_mask_indices(....)
+        e.g., tf.ops.eval.grid_mask_indices(....)
 
     Returns
     -------

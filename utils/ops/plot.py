@@ -3,6 +3,8 @@ from typing import Callable
 import numpy as np
 
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
 import seaborn as sns
 
 from .random import random_indices
@@ -10,8 +12,7 @@ from .reshape import images_to_grid, grid_ground_truth
 
 from skimage import color
 
-__all__ = ['plot_random', 'plot', 'plot_latent',
-           'grid_plot', 'label_to_rgb', 'nbins_cmap']
+__all__ = ['plot_random', 'plot', 'plot_latent', 'grid_plot', 'label_to_rgb', 'nbins_cmap', 'plot_bbox']
 
 
 def plot_random(x: np.ndarray, y: np.ndarray = None, nrows: int = 6, ncols: int = 18, figsize: tuple = None,
@@ -37,7 +38,7 @@ def plot_random(x: np.ndarray, y: np.ndarray = None, nrows: int = 6, ncols: int 
 
     indices = random_indices(n, start=0, end=m, step=1, replace=False, random_state=random_state)
 
-    images = x[indices, ..., 0]
+    images = x[indices]
     labels = None
 
     if y is not None:
@@ -46,7 +47,7 @@ def plot_random(x: np.ndarray, y: np.ndarray = None, nrows: int = 6, ncols: int 
 
     for i in range(len(axs)):
 
-        axs[i].imshow(images[i])
+        axs[i].imshow(images[i].squeeze())
 
         if y is not None:
 
@@ -155,6 +156,38 @@ def grid_plot(images: np.ndarray, nrows: int, ncols: int, pad: int = 5,
 
     ax.imshow(grid_img)
     ax.axis('off')
+
+    return fig, ax
+
+
+def plot_bbox(image: np.ndarray, x: int, y: int, width: int, height: int, origin_radius: int = 20, **kwargs):
+
+    linewidth = kwargs.get('linewidth', 1)
+    edgecolor = kwargs.get('edgecolor', 'r')
+    facecolor = kwargs.get('facecolor', 'none')
+
+    show_xy = kwargs.get('show_xy', True)
+
+    # ================================================
+
+    fig, ax = plt.subplots(1)
+
+    ax.imshow(image)
+    ax.axis('off')
+
+    # ================================================
+
+    rect = patches.Rectangle((x, y), width, height, linewidth=linewidth, edgecolor=edgecolor, facecolor=facecolor)
+    ax.add_patch(rect)
+
+    if show_xy:
+
+        point = patches.Circle((x, y), radius=origin_radius)
+        ax.add_patch(point)
+
+    # ================================================
+
+    return fig, ax
 
 
 # =====================================================================================================================

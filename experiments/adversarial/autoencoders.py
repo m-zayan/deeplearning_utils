@@ -5,14 +5,14 @@ from tensorflow.keras import optimizers
 from tensorflow.keras.layers import Input, Dense, Activation, Concatenate, GaussianDropout
 from tensorflow.keras.models import Model
 
-from . import functional
+from experiments.adversarial import functional
 
 from utils.external.common import OS
 
-__all__ = ['AdversarialAutoencoder']
+__all__ = ['AAE']
 
 
-class AdversarialAutoencoder:
+class AAE:
 
     def __init__(self, input_dim, hidden_dim, style_dim, n_classes, **kwargs):
 

@@ -126,7 +126,7 @@ def rle_decode(rle_code: str, size: tuple):
 
     sequence = rle_code.split()
 
-    starts, lengths = [np.asarray(x, dtype=int) for x in (sequence[0:][::2], sequence[1:][::2])]
+    starts, lengths = [np.asarray(x, dtype=np.int32) for x in (sequence[0:][::2], sequence[1:][::2])]
 
     starts -= 1
 

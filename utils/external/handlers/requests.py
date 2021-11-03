@@ -122,7 +122,7 @@ class Chrome(webdriver.Chrome):
 
                 else:
 
-                    Logger.fail(str(i + 1) + ': timeout::page reloads limit has been exceed\n'
+                    Logger.fail(str(i + 1) + ': timeout::page reloads limit has been exceeded\n'
                                              '\tdo you want to try again - [y/n]: ', end='')
                     ok = input()
 

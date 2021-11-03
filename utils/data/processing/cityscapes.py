@@ -159,6 +159,7 @@ class Annotation:
 
     @staticmethod
     def mask_segmentation_level(image, dtype=np.int32):
+
         mask = np.zeros_like(image, dtype=dtype)
 
         mview1d = mask.ravel()

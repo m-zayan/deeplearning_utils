@@ -436,7 +436,9 @@ class Reader:
 
     @staticmethod
     def json_to_dict(json_filename: str, **kwargs) -> Union[None, Dict[Any, Any]]:
+
         if not OS.file_exists(json_filename):
+
             Logger.warning(f'File: {json_filename} Doesn\'t Exist')
 
             return None
@@ -444,6 +446,7 @@ class Reader:
         content: dict
 
         with open(json_filename, 'r') as buffer:
+
             content = json.load(buffer, **kwargs)
 
         return content
