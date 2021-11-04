@@ -235,6 +235,20 @@ def bbox_to_loc(bbox, image_size, grid_size):
     return ij
 
 
+def points_resized(data, image_size, new_size):
+
+    shape = data.shape
+
+    scale_y = new_size[0] / image_size[0]
+    scale_x = new_size[1] / image_size[1]
+    scale = np.array([scale_x, scale_y])
+
+    points = data.reshape(-1, 2)
+    points = points * scale[None, :]
+
+    return points.reshape(shape)
+
+
 def match_bbox(bbox1, bbox2):
 
     coords1 = bbox_to_coords(bbox1)

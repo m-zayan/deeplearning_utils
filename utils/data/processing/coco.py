@@ -1,4 +1,4 @@
-from typing import Tuple, List, Dict, Any
+from typing import Tuple, List, Dict, Any, Optional
 
 import cv2
 import numpy as np
@@ -48,11 +48,13 @@ def parse_instances_annotations(path: str) -> Tuple[Dict[int, Dict],
 
 class Annotation(_abstract.Meta):
 
-    def __init__(self, path):
+    def __init__(self, path: str, image_size: Optional[Tuple[int, int]] = None):
 
         self.path = path
 
         self.categories, self.annotations = parse_instances_annotations(self.path)
+
+        self.__image_size__ = image_size
 
     def num_objects_by_id(self, image_id):
 
@@ -82,13 +84,37 @@ class Annotation(_abstract.Meta):
 
         num_objects = self.num_objects_by_id(image_id)
 
+        image_size = self.image_size_by_id(image_id)
+
         boxes = np.zeros((num_objects, 4))
 
         for i, ann in enumerate(self.annotations[image_id][:-1]):
 
             boxes[i] = ann['bbox']
 
+        if self.image_size is not None:
+
+            boxes = _abstract.points_resized(boxes, image_size, self.image_size)
+
         return boxes
+
+    def polygons_by_id(self, image_id):
+
+        image_size = self.image_size_by_id(image_id)
+
+        polygons = []
+
+        for ann in self.annotations[image_id][:-1]:
+
+            polygon = np.asarray(ann['segmentation'], dtype=np.float32)
+
+            if self.image_size is not None:
+
+                polygon = _abstract.points_resized(polygon, image_size, self.image_size)
+
+            polygons.append(polygon)
+
+        return polygons
 
     def masks_by_id(self, image_id, mask_size: Tuple = (20, 20),
                     interpolation=cv2.INTER_AREA, padding: int = 4):
@@ -97,16 +123,19 @@ class Annotation(_abstract.Meta):
 
         image_size = self.image_size_by_id(image_id)
 
+        polygons = self.polygons_by_id(image_id)
+        boxes = self.boxes_by_id(image_id)
+
         h, w = mask_size
 
         masks = np.zeros((h + 2 * padding, w + 2 * padding, num_objects))
 
-        for i, ann in enumerate(self.annotations[image_id][:-1]):
+        for i in range(num_objects):
 
-            mask = _abstract.polygon_to_mask(ann['segmentation'], image_size, image_size, color=1)
+            mask = _abstract.polygon_to_mask(polygons[i], image_size, image_size, color=1)
 
             masks[..., i] = \
-                _abstract.mask_crop_and_resize(mask, mask_size, ann['bbox'], interpolation=interpolation,
+                _abstract.mask_crop_and_resize(mask, mask_size, boxes[i], interpolation=interpolation,
                                                padding=padding)
 
         return masks.round().astype('uint8')
@@ -125,13 +154,22 @@ class Annotation(_abstract.Meta):
 
     def overlap_counts_by_id(self, image_id, grid_size):
 
+        num_objects = self.num_objects_by_id(image_id)
+
+        if self.image_size is None:
+
+            image_size = self.image_size_by_id(image_id)
+
+        else:
+
+            image_size = self.image_size
+
         overlaps = np.zeros(grid_size, dtype=np.int32)
+        boxes = self.boxes_by_id(image_id)
 
-        image_size = self.image_size_by_id(image_id)
+        for k in range(num_objects):
 
-        for ann in self.annotations[image_id][:-1]:
-
-            i, j = _abstract.bbox_to_loc(ann['bbox'], image_size, grid_size)
+            i, j = _abstract.bbox_to_loc(boxes[k], image_size, grid_size)
 
             overlaps[i - 1, j - 1] += 1
 
@@ -146,3 +184,22 @@ class Annotation(_abstract.Meta):
             counts = max(counts, self.num_objects_by_id(image_id))
 
         return counts
+
+    def max_overlaps(self, grid_size):
+
+        counts = 0
+
+        for image_id in tqdm(self.annotations):
+
+            counts = max(counts, self.overlap_counts_by_id(image_id, grid_size).max())
+
+        return counts
+
+    @property
+    def image_size(self):
+
+        return self.__image_size__
+
+    def reinterpret_size(self, image_size):
+
+        self.__image_size__ = image_size
