@@ -4,6 +4,8 @@ import cv2
 
 import tensorflow as tf
 
+from utils.ops.metrics import iou
+
 __all__ = ['Meta']
 
 
@@ -57,21 +59,69 @@ def crop_mask(mask, bbox=None):
     return cropped.numpy().squeeze()
 
 
-def mask_crop_and_resize(mask, size, bbox=None, interpolation=cv2.INTER_NEAREST):
+def crop_mask_inverse(cropped_mask, size, bbox):
+
+    h, w = cropped_mask.shape
+
+    coords = bbox_to_coords(bbox, standard=True)
+
+    x_min, y_min, x_max, y_max = coords.round().astype('int32')
+
+    if (y_max - y_min) != h:
+
+        raise ValueError('...')
+
+    if (x_max - x_min) != w:
+
+        raise ValueError('...')
+
+    mask = np.zeros(size, dtype=cropped_mask.dtype)
+
+    mask[y_min:y_max, x_min:x_max] = cropped_mask
+
+    return mask
+
+
+def mask_crop_and_resize(mask, size, bbox=None, interpolation=cv2.INTER_NEAREST, padding: int = 0):
 
     cropped = crop_mask(mask, bbox)
     cropped = cropped.astype('float32')
 
     resized = cv2.resize(cropped, size, interpolation=interpolation)
 
-    return resized
+    return np.pad(resized, padding)
 
 
-def bbox_scale_normalization(bbox, image_size, transposed=False):
+def mask_crop_and_resize_inverse(resized_mask, size, bbox, interpolation=cv2.INTER_NEAREST, padding: int = 0):
 
-    """ if transposed is True, then, bbox = [x1, y1, x2, y2] """
+    coords = bbox_to_coords(bbox, standard=True)
 
-    if transposed:
+    x_min, y_min, x_max, y_max = coords.round().astype('int32')
+
+    w = x_max - x_min
+    h = y_max - y_min
+
+    cropped = mask_padding_inverse(resized_mask, padding)
+
+    cropped = cv2.resize(cropped, (w, h), interpolation=interpolation)
+
+    mask = crop_mask_inverse(cropped, size, bbox)
+
+    return mask
+
+
+def mask_padding_inverse(mask, padding):
+
+    h, w = mask.shape
+
+    return mask[padding:h-padding, padding:w-padding]
+
+
+def bbox_scale_normalization(bbox, image_size, standard=False):
+
+    """ if standard is True, then, bbox = [x1, y1, x2, y2] """
+
+    if standard:
 
         image_size = image_size[::-1]
 
@@ -82,11 +132,11 @@ def bbox_scale_normalization(bbox, image_size, transposed=False):
     return normalized.astype('float32')
 
 
-def bbox_scale_denormalization(normalized, image_size, transposed=False):
+def bbox_scale_denormalization(normalized, image_size, standard=False):
 
-    """ if transposed is True, then, bbox = [x1, y1, x2, y2] """
+    """ if standard is True, then, bbox = [x1, y1, x2, y2] """
 
-    if transposed:
+    if standard:
 
         image_size = image_size[::-1]
 
@@ -109,7 +159,7 @@ def bbox_to_coords(bbox, standard=False):
 
     if standard:
 
-        coords = np.array([x_min, y_min, y_max, y_max])
+        coords = np.array([x_min, y_min, x_max, y_max])
 
     else:
 
@@ -118,12 +168,30 @@ def bbox_to_coords(bbox, standard=False):
     return coords
 
 
+def coords_to_bbox(coords, standard=False):
+
+    if standard:
+
+        x_min, y_min, x_max, y_max = coords
+
+    else:
+
+        y_min, x_min, y_max, x_max = coords
+
+    width = x_max - x_min
+    height = y_max - y_min
+
+    bbox = np.array([x_min, y_min, width, height])
+
+    return bbox
+
+
 def bbox_center_coords(bbox):
 
     x, y, width, height = bbox
 
-    x_offset = max(1.0, width / 2)
-    y_offset = max(1.0, height / 2)
+    x_offset = width / 2
+    y_offset = height / 2
 
     x_center = x + x_offset
     y_center = y + y_offset
@@ -143,8 +211,8 @@ def compute_strides(image_size, grid_size):
 
         raise ValueError('...')
 
-    sy = image_size[0] // grid_size[0]
-    sx = image_size[1] // grid_size[1]
+    sy = np.round(image_size[0] / grid_size[0])
+    sx = np.round(image_size[1] / grid_size[1])
 
     strides = np.array([sy, sx])
 
@@ -162,6 +230,16 @@ def bbox_to_loc(bbox, image_size, grid_size):
     ij = np.asarray([i, j], dtype=np.int32)
 
     return ij
+
+
+def match_bbox(bbox1, bbox2):
+
+    coords1 = bbox_to_coords(bbox1)
+    coords2 = bbox_to_coords(bbox2)
+
+    score = iou(coords1, coords2)
+
+    return score
 
 
 class Meta:
