@@ -171,7 +171,7 @@ class Annotation(_abstract.Meta):
 
             i, j = _abstract.bbox_to_loc(boxes[k], image_size, grid_size)
 
-            overlaps[i - 1, j - 1] += 1
+            overlaps[i, j] += 1
 
         return overlaps - 1
 

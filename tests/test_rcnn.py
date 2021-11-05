@@ -48,13 +48,13 @@ def test_build_mrcnn(input_shape, num_classes):
 
     any_size = 1000
 
-    # detections = mrcnn.detect_disjoint_step(data[0], max_output_size=any_size)
+    detections = mrcnn.detect_disjoint_step(data[0], max_output_size=any_size)
 
-    # print(len(detections[0][0][0]))
+    print(len(detections[0][0][0]))
 
-    detections = mrcnn.detect_joint_step(data[0], max_output_size=any_size)
-
-    print(len(detections[0][0]))
+    # detections = mrcnn.detect_joint_step(data[0], max_output_size=any_size)
+    #
+    # print(len(detections[0][0]))
 
 
 test_build_mrcnn(input_shape=(224, 224, 3), num_classes=100)

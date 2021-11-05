@@ -224,11 +224,11 @@ def bbox_to_loc(bbox, image_size, grid_size):
     center = bbox_center_coords(bbox)
     strides = compute_strides(image_size, grid_size)
 
-    i = np.round(center[0] / strides[0])
-    i = min(grid_size[0] - 1, i)
+    i = np.round(center[0] / strides[0]) - 1
+    i = np.clip(i, a_min=0, a_max=grid_size[0] - 1)
 
     j = np.round(center[1] / strides[1])
-    j = min(grid_size[1] - 1, j)
+    j = np.clip(j, a_min=0, a_max=grid_size[1] - 1)
 
     ij = np.asarray([i, j], dtype=np.int32)
 

@@ -3,6 +3,23 @@ import tensorflow as tf
 from tensorflow.keras import backend
 
 
+def pad_for_op(super_tensor, tensor, padding_value):
+
+    if tf.size(super_tensor) <= tf.size(tensor):
+
+        return tensor
+
+    shape = tf.shape(tensor)
+
+    size = tf.shape(super_tensor)[0] - shape[0]
+
+    pad = tf.broadcast_to([padding_value], shape=(size, *shape[1:]))
+
+    tensor = tf.concat([tensor, pad], axis=0)
+
+    return tensor
+
+
 def mask_by_zero_var(tensor, axis=-1, threshold=1e-3):
 
     area = tf.math.reduce_variance(tensor, axis=axis)
@@ -104,7 +121,9 @@ def suppress_invalid_detections(scores, boxes, max_output_size,
     return selected_indices
 
 
-def gather_selected(tensor, selected_indices):
+def gather_selected(tensor, selected_indices, same_padding=False, padding_value=0.0):
+
+    padding_value = tf.cast(padding_value, dtype=tensor.dtype)
 
     selected_values = []
 
@@ -112,13 +131,50 @@ def gather_selected(tensor, selected_indices):
 
         iselected_values = tf.gather(tensor[i], selected_indices[i])
 
+        # padding
+        if same_padding:
+
+            iselected_values = pad_for_op(tensor[i], iselected_values, padding_value)
+
         selected_values.append(iselected_values)
 
         return [i + 1]
 
     _ = tf.while_loop(lambda i: i < len(selected_indices), gather_step, [0])
 
-    return selected_values
+    if same_padding:
+
+        return tf.stack(selected_values, axis=0)
+
+    else:
+
+        return selected_values
+
+
+def suppress_selection_contradictions(selected_indices0, selected_indices1):
+
+    if len(selected_indices0) != len(selected_indices1):
+
+        raise ValueError('...')
+
+    padding_value = tf.cast(-1, dtype=tf.int32)
+
+    selected_indices = []
+
+    def suppress_step(i):
+
+        iselected_indices0 = pad_for_op(selected_indices1[i], selected_indices0[i], padding_value)
+        iselected_indices1 = pad_for_op(selected_indices0[i], selected_indices1[i], padding_value)
+
+        iselected_indices = tf.sets.intersection(iselected_indices0[None, :], iselected_indices1[None, :])
+
+        selected_indices.append(iselected_indices.values)
+
+        return [i + 1]
+
+    _ = tf.while_loop(lambda i: i < len(selected_indices0), suppress_step, [0])
+
+    return selected_indices
 
 
 def as_binary(y_true, keep_invalid=True):

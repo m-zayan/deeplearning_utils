@@ -9,7 +9,7 @@ from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, MaxPooling2D
 
 from tensorflow.keras.models import Model
 
-from utils.tf.layers.image import NonMaxSuppression, RoIAlign
+from utils.tf.layers.image import RoIAlign
 
 from . import functional
 
@@ -64,17 +64,9 @@ class BaseRCNN(Model):
 
         self.max_num_boxes_per_inception = []
 
-        self.nms: List[NonMaxSuppression] = []
         self.roi_align: List[RoIAlign] = []
 
         for i in range(len(inception)):
-
-            max_num_boxes = regions_boxes[i].shape[1]
-
-            self.nms.append(NonMaxSuppression(max_num_boxes_per_class=self.num_boxes,
-                                              max_num_boxes=max_num_boxes, iou_threshold=0.5))
-
-            self.nms[i].build(regions_boxes[i].shape)
 
             self.roi_align.append(RoIAlign(crop_size=self.region_size, method='bilinear', boxes_normalized=True))
 
@@ -140,11 +132,12 @@ class BaseRCNN(Model):
 
         return {'loss_cls': loss_cls, 'loss_loc': loss_loc}
 
-    def predict_regions_per_batch(self, images):
+    def predict_regions_per_batch(self, images, max_num_boxes=None):
 
         batch_size = tf.shape(images)[0]
 
         regions = []
+        selected_indices = []
 
         # List <---> [batch_size, height, width, depth]
         inception = self.layers[1](images)
@@ -156,19 +149,37 @@ class BaseRCNN(Model):
             # score: [batch_size, num_boxes, num_classes], boxes: [batch_size, max_num_boxes, 4]
             iregions_score, iregions_boxes = self.layers[i + 2](inception[i])
 
-            iregions_boxes = tf.reshape(iregions_boxes, (batch_size, -1, 1, 4))
+            # ============================================================================================
+
+            iregions_score = tf.reduce_max(iregions_score, axis=-1)
+
+            iregions_boxes = tf.reshape(iregions_boxes, (batch_size, -1, 4))
+
+            # ============================================================================================
+
+            if max_num_boxes is None:
+
+                max_num_boxes = iregions_boxes.shape[1]
+
+            # non max suppression
+            iselected_indices = functional.suppress_invalid_detections(iregions_score, iregions_boxes, max_num_boxes)
 
             # boxes: [batch_size, max_num_boxes, 4] <---> maybe include zero paddings
-            _, iregions_boxes, _, _ = self.nms[i]([iregions_score, iregions_boxes])
+            iregions_boxes = functional.gather_selected(iregions_boxes, iselected_indices, max_num_boxes)
 
-            # regions: [batch_size, crop_height, crop_width, depth] <---> Proceed with zero paddings
+            # ============================================================================================
+
+            # regions: [batch_size, num_regions, crop_height, crop_width, depth] <---> Proceed with zero paddings
             iregions = self.roi_align[i]([inception[i], iregions_boxes])
+
+            # ============================================================================================
 
             iregions = tf.transpose(iregions, perm=[0, 3, 1, 2, 4])
 
             regions.append(iregions)
+            selected_indices.append(iselected_indices)
 
-        return regions
+        return regions, selected_indices
 
     @staticmethod
     def downsampling_block(inputs, filters, kernel_size, activation='relu', padding='same', use_maxpool=True):
@@ -432,7 +443,7 @@ class SeparableMaskRCNN:
             # update rpn network
             _ = self.rpn.train_step((images, binary_true, bbox_true))
 
-        regions = self.rpn.predict_regions_per_batch(images)
+        regions, selected_indices = self.rpn.predict_regions_per_batch(images)
 
         # ============================================================================================
 
@@ -447,9 +458,15 @@ class SeparableMaskRCNN:
 
         for i in range(self.num_levels):
 
+            max_num_boxes = regions[i].shape[1]
+
             iy_true = y_true[:, start:end]
             ibbox_true = bbox_true[:, start:end]
             imasks_true = masks_true[:, start:end]
+
+            iy_true = functional.gather_selected(iy_true, selected_indices[i], max_num_boxes, padding_value=-1.0)
+            ibbox_true = functional.gather_selected(ibbox_true, selected_indices[i], max_num_boxes)
+            imasks_true = functional.gather_selected(imasks_true, selected_indices[i], max_num_boxes)
 
             with tf.GradientTape() as tape:
 
@@ -527,7 +544,7 @@ class SeparableMaskRCNN:
 
         # ============================================================================================
 
-        regions = self.rpn.predict_regions_per_batch(images)
+        regions, regions_indices = self.rpn.predict_regions_per_batch(images)
 
         # ============================================================================================
 
@@ -546,12 +563,15 @@ class SeparableMaskRCNN:
 
                 iboxes, iscores = bbox_pred, tf.reduce_max(y_pred, axis=-1)
 
-            selected_indices = functional.suppress_invalid_detections(iscores, iboxes, max_output_size)
+            iselected_indices = functional.suppress_invalid_detections(iscores, iboxes, max_output_size)
 
-            iscores = functional.gather_selected(iscores, selected_indices)
-            iboxes = functional.gather_selected(iboxes, selected_indices)
-            imasks = functional.gather_selected(masks_pred, selected_indices)
-            iclasses = functional.gather_selected(iclasses, selected_indices)
+            iselected_indices = \
+                functional.suppress_selection_contradictions(regions_indices[i], iselected_indices)
+
+            iscores = functional.gather_selected(iscores, iselected_indices)
+            iboxes = functional.gather_selected(iboxes, iselected_indices)
+            imasks = functional.gather_selected(masks_pred, iselected_indices)
+            iclasses = functional.gather_selected(iclasses, iselected_indices)
 
             detections_scores.append(iscores)
             detections_boxes.append(iboxes)
@@ -564,7 +584,7 @@ class SeparableMaskRCNN:
 
         # ============================================================================================
 
-        regions = self.rpn.predict_regions_per_batch(images)
+        regions, regions_indices = self.rpn.predict_regions_per_batch(images)
 
         scores = []
         boxes = []
