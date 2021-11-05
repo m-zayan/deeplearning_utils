@@ -123,7 +123,11 @@ def suppress_invalid_detections(scores, boxes, max_output_size,
 
 def gather_selected(tensor, selected_indices, same_padding=False, padding_value=0.0):
 
+    shape = tf.shape(tensor)
+
     padding_value = tf.cast(padding_value, dtype=tensor.dtype)
+
+    pad = tf.broadcast_to([padding_value], shape=shape[1:])
 
     selected_values = []
 
@@ -134,7 +138,7 @@ def gather_selected(tensor, selected_indices, same_padding=False, padding_value=
         # padding
         if same_padding:
 
-            iselected_values = pad_for_op(tensor[i], iselected_values, padding_value)
+            iselected_values = tf.tensor_scatter_nd_update(pad, selected_indices[i][:, None], iselected_values)
 
         selected_values.append(iselected_values)
 
@@ -167,6 +171,32 @@ def suppress_selection_contradictions(selected_indices0, selected_indices1):
         iselected_indices1 = pad_for_op(selected_indices0[i], selected_indices1[i], padding_value)
 
         iselected_indices = tf.sets.intersection(iselected_indices0[None, :], iselected_indices1[None, :])
+
+        selected_indices.append(iselected_indices.values)
+
+        return [i + 1]
+
+    _ = tf.while_loop(lambda i: i < len(selected_indices0), suppress_step, [0])
+
+    return selected_indices
+
+
+def suppress_selection_matching(selected_indices0, selected_indices1):
+
+    if len(selected_indices0) != len(selected_indices1):
+
+        raise ValueError('...')
+
+    padding_value = tf.cast(-1, dtype=tf.int32)
+
+    selected_indices = []
+
+    def suppress_step(i):
+
+        iselected_indices0 = pad_for_op(selected_indices1[i], selected_indices0[i], padding_value)
+        iselected_indices1 = pad_for_op(selected_indices0[i], selected_indices1[i], padding_value)
+
+        iselected_indices = tf.sets.difference(iselected_indices0[None, :], iselected_indices1[None, :])
 
         selected_indices.append(iselected_indices.values)
 

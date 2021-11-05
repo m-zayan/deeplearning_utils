@@ -169,11 +169,12 @@ class BaseRCNN(Model):
 
             # ============================================================================================
 
-            # regions: [batch_size, num_regions, crop_height, crop_width, depth] <---> Proceed with zero paddings
+            # regions: [batch_size, crop_height, crop_width, num_regions, depth] <---> Proceed with zero paddings
             iregions = self.roi_align[i]([inception[i], iregions_boxes])
 
             # ============================================================================================
 
+            # regions: [batch_size, num_regions, crop_height, crop_width, depth] <---> Proceed with zero paddings
             iregions = tf.transpose(iregions, perm=[0, 3, 1, 2, 4])
 
             regions.append(iregions)
