@@ -458,15 +458,13 @@ class SeparableMaskRCNN:
 
         for i in range(self.num_levels):
 
-            max_num_boxes = regions[i].shape[1]
-
             iy_true = y_true[:, start:end]
             ibbox_true = bbox_true[:, start:end]
             imasks_true = masks_true[:, start:end]
 
-            iy_true = functional.gather_selected(iy_true, selected_indices[i], max_num_boxes, padding_value=-1.0)
-            ibbox_true = functional.gather_selected(ibbox_true, selected_indices[i], max_num_boxes)
-            imasks_true = functional.gather_selected(imasks_true, selected_indices[i], max_num_boxes)
+            iy_true = functional.gather_selected(iy_true, selected_indices[i], same_padding=True, padding_value=-1.0)
+            ibbox_true = functional.gather_selected(ibbox_true, selected_indices[i], same_padding=True)
+            imasks_true = functional.gather_selected(imasks_true, selected_indices[i], same_padding=True)
 
             with tf.GradientTape() as tape:
 
