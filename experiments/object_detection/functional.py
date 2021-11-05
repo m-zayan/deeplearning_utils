@@ -161,14 +161,15 @@ def suppress_selection_contradictions(selected_indices0, selected_indices1):
 
         raise ValueError('...')
 
-    padding_value = tf.cast(-1, dtype=tf.int32)
+    padding_value0 = tf.cast(-1, dtype=tf.int32)
+    padding_value1 = tf.cast(-2, dtype=tf.int32)
 
     selected_indices = []
 
     def suppress_step(i):
 
-        iselected_indices0 = pad_for_op(selected_indices1[i], selected_indices0[i], padding_value)
-        iselected_indices1 = pad_for_op(selected_indices0[i], selected_indices1[i], padding_value)
+        iselected_indices0 = pad_for_op(selected_indices1[i], selected_indices0[i], padding_value0)
+        iselected_indices1 = pad_for_op(selected_indices0[i], selected_indices1[i], padding_value1)
 
         iselected_indices = tf.sets.intersection(iselected_indices0[None, :], iselected_indices1[None, :])
 
@@ -187,14 +188,15 @@ def suppress_selection_matching(selected_indices0, selected_indices1):
 
         raise ValueError('...')
 
-    padding_value = tf.cast(-1, dtype=tf.int32)
+    padding_value0 = tf.cast(-1, dtype=tf.int32)
+    padding_value1 = tf.cast(-2, dtype=tf.int32)
 
     selected_indices = []
 
     def suppress_step(i):
 
-        iselected_indices0 = pad_for_op(selected_indices1[i], selected_indices0[i], padding_value)
-        iselected_indices1 = pad_for_op(selected_indices0[i], selected_indices1[i], padding_value)
+        iselected_indices0 = pad_for_op(selected_indices1[i], selected_indices0[i], padding_value0)
+        iselected_indices1 = pad_for_op(selected_indices0[i], selected_indices1[i], padding_value1)
 
         iselected_indices = tf.sets.difference(iselected_indices0[None, :], iselected_indices1[None, :])
 
@@ -205,6 +207,23 @@ def suppress_selection_matching(selected_indices0, selected_indices1):
     _ = tf.while_loop(lambda i: i < len(selected_indices0), suppress_step, [0])
 
     return selected_indices
+
+
+def shift_indices(indices, start):
+
+    shifted_indices = []
+
+    def shift_step(i):
+
+        iindices = indices[i] + start
+
+        shifted_indices.append(iindices)
+
+        return [i + 1]
+
+    _ = tf.while_loop(lambda i: i < len(indices), shift_step, [0])
+
+    return shifted_indices
 
 
 def as_binary(y_true, keep_invalid=True):

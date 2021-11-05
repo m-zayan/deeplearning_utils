@@ -622,7 +622,34 @@ class SeparableMaskRCNN:
 
         # ============================================================================================
 
+        # shift regions_indices
+
+        shifted_indices = []
+
+        for i in range(1, self.num_levels):
+
+            start = regions[i].shape[1]
+
+            regions_indices[i] = functional.shift_indices(regions_indices[i], start)
+
+        regions_indices = list(zip(*regions_indices))
+
+        for i in range(len(regions_indices)):
+
+            shifted_indices.append([])
+
+            for j in range(len(regions_indices[i])):
+
+                shifted_indices[i] += list(regions_indices[i][j])
+
+        for i in range(len(shifted_indices)):
+
+            shifted_indices[i] = tf.cast(shifted_indices[i], dtype=tf.int32)
+
+        # ============================================================================================
+
         selected_indices = functional.suppress_invalid_detections(scores, boxes, max_output_size)
+        selected_indices = functional.suppress_selection_contradictions(shifted_indices, selected_indices)
 
         detections_scores = functional.gather_selected(scores, selected_indices)
         detections_boxes = functional.gather_selected(boxes, selected_indices)
