@@ -117,36 +117,6 @@ def mask_padding_inverse(mask, padding):
     return mask[padding:h-padding, padding:w-padding]
 
 
-def bbox_scale_normalization(bbox, image_size, standard=False):
-
-    """ if standard is True, then, bbox = [x1, y1, x2, y2] """
-
-    if standard:
-
-        image_size = image_size[::-1]
-
-    scale = np.array([*image_size, *image_size]) - 1.0
-
-    normalized = np.divide(bbox, scale)
-
-    return normalized.astype('float32')
-
-
-def bbox_scale_denormalization(normalized, image_size, standard=False):
-
-    """ if standard is True, then, bbox = [x1, y1, x2, y2] """
-
-    if standard:
-
-        image_size = image_size[::-1]
-
-    scale = np.array([*image_size, *image_size]) - 1.0
-
-    bbox = np.multiply(normalized, scale)
-
-    return bbox.astype('float32')
-
-
 def bbox_to_coords(bbox, standard=False):
 
     x, y, width, height = bbox
@@ -247,6 +217,44 @@ def points_resized(data, image_size, new_size):
     points = points * scale[None, :]
 
     return points.reshape(shape)
+
+
+def points_scale_normalization(data, image_size, standard=False):
+
+    """ if standard is True, then, bbox = [x1, y1, x2, y2] """
+
+    shape = data.shape
+
+    if standard:
+
+        image_size = image_size[::-1]
+
+    scale = np.array([*image_size]) - 1.0
+
+    points = data.reshape(-1, 2)
+
+    normalized = np.divide(points, scale[None, :])
+
+    return normalized.reshape(shape)
+
+
+def points_scale_denormalization(normalized, image_size, standard=False):
+
+    """ if standard is True, then, bbox = [x1, y1, x2, y2] """
+
+    shape = normalized.shape
+
+    if standard:
+
+        image_size = image_size[::-1]
+
+    scale = np.array([*image_size]) - 1.0
+
+    points = normalized.reshape(-1, 2)
+
+    data = points * scale[None, :]
+
+    return data.reshape(shape)
 
 
 def match_bbox(bbox1, bbox2):

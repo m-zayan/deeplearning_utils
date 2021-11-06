@@ -2,7 +2,7 @@ from typing import Tuple, List
 
 import tensorflow as tf
 
-from tensorflow.keras import backend
+from tensorflow.keras import backend, optimizers
 
 from tensorflow.keras.layers import Input, Conv2D, Conv2DTranspose, MaxPooling2D, Dense, LayerNormalization, \
     Flatten, Reshape, Activation, TimeDistributed, UpSampling2D
@@ -12,6 +12,8 @@ from tensorflow.keras.models import Model
 from utils.tf.layers.image import RoIAlign
 
 from . import functional
+
+__all__ = ['BaseRCNN', 'SeparableMaskRCNN', 'MaskRCNN']
 
 
 class BaseRCNN(Model):
@@ -125,14 +127,25 @@ class BaseRCNN(Model):
 
         images, y_true, bbox_true = data
 
+        # ==================================================================================================
+
         regions_score, regions_boxes = self(images, training=False)
+
+        # ==================================================================================================
+
+        (y_true, regions_score), (bbox_true, regions_boxes) = \
+            functional.trim_invalid_detections(y_true, regions_score, bbox_true, regions_boxes)
+
+        # ==================================================================================================
 
         loss_cls = functional.sparse_categorical_crossentropy(y_true, regions_score)
         loss_loc = functional.smooth_l1_loss(bbox_true, regions_boxes)
 
+        # ==================================================================================================
+
         return {'loss_cls': loss_cls, 'loss_loc': loss_loc}
 
-    def predict_regions_per_batch(self, images, max_num_boxes=None):
+    def predict_regions_per_batch(self, images, max_num_regions=None):
 
         batch_size = tf.shape(images)[0]
 
@@ -157,15 +170,15 @@ class BaseRCNN(Model):
 
             # ============================================================================================
 
-            if max_num_boxes is None:
+            if max_num_regions is None:
 
-                max_num_boxes = iregions_boxes.shape[1]
+                max_num_regions = tf.shape(iregions_boxes)[1]
 
             # non max suppression
-            iselected_indices = functional.suppress_invalid_detections(iregions_score, iregions_boxes, max_num_boxes)
+            iselected_indices = functional.suppress_invalid_detections(iregions_score, iregions_boxes, max_num_regions)
 
             # boxes: [batch_size, max_num_boxes, 4] <---> maybe include zero paddings
-            iregions_boxes = functional.gather_selected(iregions_boxes, iselected_indices, max_num_boxes)
+            iregions_boxes = functional.gather_selected(iregions_boxes, iselected_indices, same_padding=True)
 
             # ============================================================================================
 
@@ -412,6 +425,18 @@ class SeparableMaskRCNN:
             self.classification_networks[i].summary()
             self.segmentation_networks[i].summary()
 
+    def inception_size(self):
+
+        size = []
+
+        shapes = self.rpn.layers[1].output_shape
+
+        for i in range(self.num_levels):
+
+            size.append(shapes[i][1:3] + (self.num_boxes, ))
+
+        return size
+
     def num_predictions(self):
 
         count = 0
@@ -426,23 +451,35 @@ class SeparableMaskRCNN:
 
         return self.num_predictions() // self.num_boxes
 
-    def train_step(self, data):
+    def train_rpn_step(self, data):
 
-        images, y_true, bbox_true, masks_true = data
-
-        # ============================================================================================
+        images, y_true, bbox_true = data
 
         if self.use_rpn_multiclass:
 
             # update rpn network
-            _ = self.rpn.train_step((images, y_true, bbox_true))
+            metrics_dict = self.rpn.train_step((images, y_true, bbox_true))
 
         else:
 
             binary_true = functional.as_binary(y_true)
 
             # update rpn network
-            _ = self.rpn.train_step((images, binary_true, bbox_true))
+            metrics_dict = self.rpn.train_step((images, binary_true, bbox_true))
+
+        return metrics_dict
+
+    def train_step(self, data, update_rpn=False):
+
+        images, y_true, bbox_true, masks_true = data
+
+        # ============================================================================================
+
+        if update_rpn:
+
+            self.train_rpn_step((images, y_true, bbox_true))
+
+        # ============================================================================================
 
         regions, selected_indices = self.rpn.predict_regions_per_batch(images)
 
@@ -453,7 +490,10 @@ class SeparableMaskRCNN:
 
         # ============================================================================================
 
-        metrics_dict = {'loss_cls': 0.0, 'loss_loc': 0.0, 'loss_seg': 0.0}
+        metrics_dict = {'loss_cls': 0.0, 'loss_loc': 0.0, 'loss_seg': 0.0,
+                        'bbox_iou': 0.0, 'masks_iou': 0.0}
+
+        factor = 1.0 / float(self.num_levels)
 
         # ============================================================================================
 
@@ -528,6 +568,98 @@ class SeparableMaskRCNN:
             if i + 1 < len(regions):
 
                 end += regions[i + 1].shape[1]
+
+            # ============================================================================================
+
+            metrics_dict['bbox_iou'] += \
+                functional.compute_bbox_iou(iy_true, y_pred, ibbox_true, bbox_pred, factor=factor)
+
+            metrics_dict['masks_iou'] += \
+                functional.compute_masks_iou(iy_true, y_pred, imasks_true, masks_pred, factor=factor)
+
+            # ============================================================================================
+
+        return metrics_dict
+
+    def test_step(self, data):
+
+        images, y_true, bbox_true, masks_true = data
+
+        # ============================================================================================
+
+        regions, selected_indices = self.rpn.predict_regions_per_batch(images)
+
+        # ============================================================================================
+
+        start = 0
+        end = regions[0].shape[1]
+
+        # ============================================================================================
+
+        metrics_dict = {'loss_cls': 0.0, 'loss_loc': 0.0, 'loss_seg': 0.0,
+                        'bbox_iou': 0.0, 'masks_iou': 0.0}
+
+        factor = 1.0 / float(self.num_levels)
+
+        # ============================================================================================
+
+        for i in range(self.num_levels):
+
+            iy_true = y_true[:, start:end]
+            ibbox_true = bbox_true[:, start:end]
+            imasks_true = masks_true[:, start:end]
+
+            iy_true = functional.gather_selected(iy_true, selected_indices[i], same_padding=True, padding_value=-1.0)
+            ibbox_true = functional.gather_selected(ibbox_true, selected_indices[i], same_padding=True)
+            imasks_true = functional.gather_selected(imasks_true, selected_indices[i], same_padding=True)
+
+            # ==================================================================================================
+
+            y_pred, bbox_pred = self.classification_networks[i](regions[i], training=True)
+
+            if self.use_box_per_class:
+
+                bbox_pred = functional.select_max_score_boxes(y_pred, bbox_pred)
+
+            # ==================================================================================================
+
+            (iy_true, y_pred), (ibbox_true, bbox_pred), condition =\
+                functional.trim_invalid_detections(iy_true, y_pred, ibbox_true, bbox_pred, return_condition=True)
+
+            # ==================================================================================================
+
+            iloss_cls = functional.sparse_categorical_crossentropy(iy_true, y_pred)
+            iloss_loc = functional.smooth_l1_loss(ibbox_true, bbox_pred)
+
+            metrics_dict['loss_cls'] += iloss_cls
+            metrics_dict['loss_loc'] += iloss_loc
+
+            # ==================================================================================================
+
+            masks_pred = self.segmentation_networks[i](regions[i], training=True)
+
+            # trim invalid detections for segmentation
+            imasks_true, masks_pred = functional.boolean_mask(imasks_true, masks_pred, condition)
+
+            iloss_seg = functional.binary_crossentropy(imasks_true, masks_pred)
+
+            metrics_dict['loss_seg'] += iloss_seg
+
+            # ============================================================================================
+
+            start = end
+
+            if i + 1 < len(regions):
+
+                end += regions[i + 1].shape[1]
+
+            # ============================================================================================
+
+            metrics_dict['bbox_iou'] += \
+                functional.compute_bbox_iou(iy_true, y_pred, ibbox_true, bbox_pred, factor=factor)
+
+            metrics_dict['masks_iou'] += \
+                functional.compute_masks_iou(iy_true, y_pred, imasks_true, masks_pred, factor=factor)
 
             # ============================================================================================
 
@@ -657,3 +789,83 @@ class SeparableMaskRCNN:
         detections_classes = functional.gather_selected(classes, selected_indices)
 
         return detections_scores, detections_classes, detections_boxes, detections_masks
+
+
+class MaskRCNN(Model):
+
+    def __init__(self, input_shape, filters_per_level, kernel_size_per_level, region_size=(7, 7),
+                 cls_projection_size=512, masks_projection_size=64, num_classes=1000, num_boxes=5,
+                 use_box_per_class=True, use_rpn_multiclass=False):
+
+        self.separable_mrcnn = SeparableMaskRCNN(input_shape=input_shape,
+                                                 filters_per_level=filters_per_level,
+                                                 kernel_size_per_level=kernel_size_per_level,
+                                                 region_size=region_size,
+                                                 cls_projection_size=cls_projection_size,
+                                                 masks_projection_size=masks_projection_size,
+                                                 num_classes=num_classes,
+                                                 num_boxes=num_boxes,
+                                                 use_box_per_class=use_box_per_class,
+                                                 use_rpn_multiclass=use_rpn_multiclass)
+
+        super(MaskRCNN, self).__init__(inputs=[], outputs=[])
+
+    def get_config(self):
+
+        return super(MaskRCNN, self).get_config()
+
+    def summary(self):
+
+        self.separable_mrcnn.summary()
+
+    def call(self, data, training=None):
+
+        raise NotImplementedError('...')
+
+    def compile(self, optimizer='sgd', rpn_optimizer=None, cls_optimizer=None, masks_optimizer=None):
+
+        if rpn_optimizer is None:
+
+            rpn_optimizer = optimizers.Adam(learning_rate=1e-3)
+
+        if cls_optimizer is None:
+
+            cls_optimizer = optimizers.Adam(learning_rate=1e-3)
+
+        if masks_optimizer is None:
+
+            masks_optimizer = optimizers.Adam(learning_rate=1e-3)
+
+        self.separable_mrcnn.compile(rpn_optimizer, cls_optimizer, masks_optimizer)
+
+        super(MaskRCNN, self).compile(optimizer=optimizer, run_eagerly=True)
+
+    def max_num_objects(self):
+
+        return self.separable_mrcnn.max_num_objects()
+
+    def num_predictions(self):
+
+        return self.separable_mrcnn.num_predictions()
+
+    def inception_size(self):
+
+        return self.separable_mrcnn.inception_size()
+
+    def train_step(self, data):
+
+        return self.separable_mrcnn.train_step(data)
+
+    def test_step(self, data):
+
+        return self.separable_mrcnn.test_step(data)
+
+    def predict_on_batch(self, images, max_output_size, disjoint=True):
+
+        if disjoint:
+
+            return self.separable_mrcnn.detect_disjoint_step(images, max_output_size=max_output_size)
+
+        else:
+
+            return self.separable_mrcnn.detect_joint_step(images, max_output_size=max_output_size)

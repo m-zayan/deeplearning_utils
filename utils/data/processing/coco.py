@@ -60,6 +60,12 @@ class Annotation(_abstract.Meta):
 
         return len(self.annotations[image_id][:-1])
 
+    def filename_by_id(self, image_id):
+
+        meta = self.annotations[image_id][-1]
+
+        return meta['file_name']
+
     def image_size_by_id(self, image_id):
 
         meta = self.annotations[image_id][-1]
@@ -80,7 +86,11 @@ class Annotation(_abstract.Meta):
 
         return categories
 
-    def boxes_by_id(self, image_id):
+    def boxes_by_id(self, image_id, as_coords=False, normalized=False):
+
+        if normalized and self.image_size is None:
+
+            raise ValueError('...')
 
         num_objects = self.num_objects_by_id(image_id)
 
@@ -92,9 +102,17 @@ class Annotation(_abstract.Meta):
 
             boxes[i] = ann['bbox']
 
+            if as_coords:
+
+                boxes[i] = _abstract.bbox_to_coords(boxes[i], standard=False)
+
         if self.image_size is not None:
 
             boxes = _abstract.points_resized(boxes, image_size, self.image_size)
+
+            if normalized:
+
+                boxes = _abstract.points_scale_normalization(boxes, self.image_size, standard=False)
 
         return boxes
 
@@ -128,13 +146,13 @@ class Annotation(_abstract.Meta):
 
         h, w = mask_size
 
-        masks = np.zeros((h + 2 * padding, w + 2 * padding, num_objects))
+        masks = np.zeros((num_objects, h + 2 * padding, w + 2 * padding))
 
         for i in range(num_objects):
 
             mask = _abstract.polygon_to_mask(polygons[i], image_size, image_size, color=1)
 
-            masks[..., i] = \
+            masks[i] = \
                 _abstract.mask_crop_and_resize(mask, mask_size, boxes[i], interpolation=interpolation,
                                                padding=padding)
 

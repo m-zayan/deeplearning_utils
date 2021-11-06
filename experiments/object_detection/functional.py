@@ -2,6 +2,8 @@ import tensorflow as tf
 
 from tensorflow.keras import backend
 
+from utils.tf.ops.metrics import iou
+
 
 def pad_for_op(super_tensor, tensor, padding_value):
 
@@ -103,6 +105,8 @@ def select_max_score_boxes(y_pred, bbox_pred, return_scores=False):
 def suppress_invalid_detections(scores, boxes, max_output_size,
                                 score_threshold=float('-inf'), iou_threshold=0.5):
 
+    steps = tf.shape(scores)[0]
+
     selected_indices = []
 
     def suppress_step(i):
@@ -110,13 +114,13 @@ def suppress_invalid_detections(scores, boxes, max_output_size,
         iselected_indices = \
             tf.image.non_max_suppression(boxes[i], scores[i], max_output_size, iou_threshold, score_threshold)
 
-        if len(iselected_indices):
+        if iselected_indices.shape[0]:
 
             selected_indices.append(iselected_indices)
 
         return [i + 1]
 
-    _ = tf.while_loop(lambda i: i < len(scores), suppress_step, [0])
+    _ = tf.while_loop(lambda i: i < steps, suppress_step, [0])
 
     return selected_indices
 
@@ -282,3 +286,71 @@ def binary_crossentropy(y_true, y_pred):
     loss = backend.binary_crossentropy(y_true, y_pred)
 
     return backend.mean(loss)
+
+
+def pruning_score(y_true, y_pred, score_threshold: float = float('-inf')):
+
+    scores = tf.reduce_max(y_pred, axis=-1)
+
+    y_pred = backend.argmax(y_pred, axis=-1)
+
+    y_true = tf.cast(tf.squeeze(y_true), dtype=tf.int32)
+    y_pred = tf.cast(y_pred, dtype=tf.int32)
+
+    condition_0 = tf.equal(y_true, y_pred)
+    condition_1 = tf.greater(scores, score_threshold)
+
+    pruning_tensor = tf.logical_and(condition_0, condition_1)
+    pruning_tensor = tf.cast(pruning_tensor, dtype=tf.float32)
+
+    return pruning_tensor
+
+
+def compute_bbox_iou(y_true, y_pred, bbox_true, bbox_pred,
+                     score_threshold: float = float('-inf'), factor: float = 1.0):
+
+    if tf.size(y_true) == 0:
+
+        return tf.constant(0.0, dtype=tf.float32)
+
+    pruning_tensor = pruning_score(y_true, y_pred, score_threshold)
+
+    score = iou(bbox_true, bbox_pred)
+
+    return factor * backend.mean(score * pruning_tensor)
+
+
+def compute_masks_iou(y_true, y_pred, masks_true, masks_pred,
+                      score_threshold: float = float('-inf'), mask_threshold: float = 0.5,
+                      iou_threshold: float = 0.5, factor: float = 1.0):
+
+    if tf.size(y_true) == 0:
+
+        return tf.constant(0.0, dtype=tf.float32)
+
+    pruning_tensor = pruning_score(y_true, y_pred, score_threshold)
+
+    masks_true = tf.cast(masks_true, dtype=tf.bool)
+    masks_pred = tf.greater(masks_pred, mask_threshold)
+
+    def compute_step(elems):
+
+        mask_true, mask_pred = elems
+
+        intersection = tf.logical_and(mask_true, mask_pred)
+        intersection = tf.cast(intersection, dtype=tf.float32)
+        intersection = tf.reduce_sum(intersection)
+
+        union = tf.logical_or(mask_true, mask_pred)
+        union = tf.cast(union, dtype=tf.float32)
+        union = tf.reduce_sum(union)
+
+        iscore = tf.divide(intersection, union)
+
+        iscore = tf.cond(tf.greater(iscore, iou_threshold), lambda: iscore, lambda: 0.0)
+
+        return iscore
+
+    score = tf.map_fn(compute_step, (masks_true, masks_pred), fn_output_signature=tf.float32)
+
+    return factor * backend.mean(score * pruning_tensor)
