@@ -102,10 +102,10 @@ class BaseRCNN(Model):
 
             # ==================================================================================================
 
-            loss_cls = functional.sparse_categorical_crossentropy(y_true, regions_score)
-            loss_loc = functional.smooth_l1_loss(bbox_true, regions_boxes)
+            rpn_cls_loss = functional.sparse_categorical_crossentropy(y_true, regions_score)
+            rpn_loc_loss = functional.smooth_l1_loss(bbox_true, regions_boxes)
 
-            loss = loss_cls + loss_loc
+            loss = rpn_cls_loss + rpn_loc_loss
 
         if loss != 0.0:
 
@@ -121,7 +121,7 @@ class BaseRCNN(Model):
 
             # ============================================================================================
 
-        return {'loss_cls': loss_cls, 'loss_loc': loss_loc}
+        return {'rpn_cls_loss': rpn_cls_loss, 'rpn_loc_loss': rpn_loc_loss}
 
     def test_step(self, data):
 
@@ -138,12 +138,12 @@ class BaseRCNN(Model):
 
         # ==================================================================================================
 
-        loss_cls = functional.sparse_categorical_crossentropy(y_true, regions_score)
-        loss_loc = functional.smooth_l1_loss(bbox_true, regions_boxes)
+        rpn_cls_loss = functional.sparse_categorical_crossentropy(y_true, regions_score)
+        rpn_loc_loss = functional.smooth_l1_loss(bbox_true, regions_boxes)
 
         # ==================================================================================================
 
-        return {'loss_cls': loss_cls, 'loss_loc': loss_loc}
+        return {'rpn_cls_loss': rpn_cls_loss, 'rpn_loc_loss': rpn_loc_loss}
 
     def predict_regions_per_batch(self, images, max_num_regions=None):
 
@@ -808,6 +808,9 @@ class MaskRCNN(Model):
                                                  use_box_per_class=use_box_per_class,
                                                  use_rpn_multiclass=use_rpn_multiclass)
 
+        self._rpn_status = 'active'
+        self._mrcnn_status = 'active'
+
         super(MaskRCNN, self).__init__(inputs=[], outputs=[])
 
     def get_config(self):
@@ -852,9 +855,31 @@ class MaskRCNN(Model):
 
         return self.separable_mrcnn.inception_size()
 
+    def set_rpn_status(self, status: str = 'active'):
+
+        if status not in ['active', 'disabled']:
+
+            raise ValueError('...')
+
+        self._rpn_status = status
+
+    def set_mrcnn_status(self, status: str = 'active'):
+
+        if status not in ['active', 'disabled']:
+
+            raise ValueError('...')
+
+        self._mrcnn_status = status
+
     def train_step(self, data):
 
-        return self.separable_mrcnn.train_step(data)
+        if self._mrcnn_status == 'active':
+
+            return self.separable_mrcnn.train_step(data, update_rpn=(self._rpn_status == 'active'))
+
+        else:
+
+            return self.separable_mrcnn.train_rpn_step(data[:3])
 
     def test_step(self, data):
 

@@ -45,6 +45,9 @@ def test_build_mrcnn(num_test_cases, input_shape, num_classes):
     tf_data = tf.data.Dataset.from_tensor_slices(data)
     tf_data = tf_data.batch(1)
 
+    # mrcnn.set_rpn_status(status='disabled')
+    # mrcnn.set_mrcnn_status(status='disabled')
+
     _ = mrcnn.fit(tf_data, epochs=2)
 
     # loss = mrcnn.train_step(data)
