@@ -76,6 +76,10 @@ class BaseRCNN(Model):
 
         # ============================================================================================
 
+        self.cache = {}
+
+        # ============================================================================================
+
     def get_config(self):
 
         return super(BaseRCNN, self).get_config()
@@ -86,7 +90,21 @@ class BaseRCNN(Model):
 
     def train_step(self, data):
 
+        # ==================================================================================================
+
+        """ 'metrics_accuracy' (namely metrics reliability) is being used for debugging """
+
+        metrics_dict = {'rpn_cls_loss': 0.0, 'rpn_loc_loss': 0.0, 'metrics_accuracy': 0.0}
+
+        # ==================================================================================================
+
         images, y_true, bbox_true = data
+
+        # ==================================================================================================
+
+        true_detections_counts = tf.reduce_sum(functional.as_binary(y_true, keep_invalid=False))
+
+        # ==================================================================================================
 
         with tf.GradientTape() as tape:
 
@@ -99,6 +117,10 @@ class BaseRCNN(Model):
 
             (y_true, regions_score), (bbox_true, regions_boxes) = \
                 functional.trim_invalid_detections(y_true, regions_score, bbox_true, regions_boxes)
+
+            # ==================================================================================================
+
+            trimmed_detections_counts = tf.reduce_sum(functional.as_binary(y_true, keep_invalid=False))
 
             # ==================================================================================================
 
@@ -121,11 +143,36 @@ class BaseRCNN(Model):
 
             # ============================================================================================
 
-        return {'rpn_cls_loss': rpn_cls_loss, 'rpn_loc_loss': rpn_loc_loss}
+            metrics_dict['rpn_cls_loss'] = rpn_cls_loss
+            metrics_dict['rpn_loc_loss'] = rpn_loc_loss
+
+            metrics_dict['metrics_accuracy'] = trimmed_detections_counts / true_detections_counts
+
+            # ============================================================================================
+
+            self.cache['metrics'] = metrics_dict
+
+        else:
+
+            metrics_dict = self.cache['metrics']
+
+        return metrics_dict
 
     def test_step(self, data):
 
+        """ 'metrics_accuracy' (namely metrics reliability) is being used for debugging """
+
+        # ==================================================================================================
+
+        metrics_dict = {'rpn_cls_loss': 0.0, 'rpn_loc_loss': 0.0, 'metrics_accuracy': 0.0}
+
+        # ==================================================================================================
+
         images, y_true, bbox_true = data
+
+        # ==================================================================================================
+
+        true_detections_counts = tf.reduce_sum(functional.as_binary(y_true, keep_invalid=False))
 
         # ==================================================================================================
 
@@ -138,12 +185,18 @@ class BaseRCNN(Model):
 
         # ==================================================================================================
 
-        rpn_cls_loss = functional.sparse_categorical_crossentropy(y_true, regions_score)
-        rpn_loc_loss = functional.smooth_l1_loss(bbox_true, regions_boxes)
+        trimmed_detections_counts = tf.reduce_sum(functional.as_binary(y_true, keep_invalid=False))
 
         # ==================================================================================================
 
-        return {'rpn_cls_loss': rpn_cls_loss, 'rpn_loc_loss': rpn_loc_loss}
+        metrics_dict['rpn_cls_loss'] = functional.sparse_categorical_crossentropy(y_true, regions_score)
+        metrics_dict['rpn_loc_loss'] = functional.smooth_l1_loss(bbox_true, regions_boxes)
+
+        metrics_dict['metrics_accuracy'] = trimmed_detections_counts / true_detections_counts
+
+        # ==================================================================================================
+
+        return metrics_dict
 
     def predict_regions_per_batch(self, images, max_num_regions=None):
 
@@ -282,6 +335,10 @@ class SeparableMaskRCNN:
         self.rpn_optimizer = None
         self.cls_optimizer = None
         self.masks_optimizer = None
+
+        # ============================================================================================
+
+        self.cache = {}
 
         # ============================================================================================
 
@@ -469,7 +526,32 @@ class SeparableMaskRCNN:
 
         return metrics_dict
 
+    def test_rpn_step(self, data):
+
+        images, y_true, bbox_true = data
+
+        if self.use_rpn_multiclass:
+
+            # test rpn network
+            metrics_dict = self.rpn.test_step((images, y_true, bbox_true))
+
+        else:
+
+            binary_true = functional.as_binary(y_true)
+
+            # test rpn network
+            metrics_dict = self.rpn.test_step((images, binary_true, bbox_true))
+
+        return metrics_dict
+
     def train_step(self, data, update_rpn=False):
+
+        # ============================================================================================
+
+        metrics_dict = {'loss_cls': 0.0, 'loss_loc': 0.0, 'loss_seg': 0.0,
+                        'bbox_iou': 0.0, 'masks_iou': 0.0}
+
+        # ============================================================================================
 
         images, y_true, bbox_true, masks_true = data
 
@@ -477,7 +559,11 @@ class SeparableMaskRCNN:
 
         if update_rpn:
 
-            self.train_rpn_step((images, y_true, bbox_true))
+            rpn_metrics_dict = self.train_rpn_step((images, y_true, bbox_true))
+
+            metrics_dict.update(rpn_metrics_dict)
+
+        factor = 1.0 / float(self.num_levels)
 
         # ============================================================================================
 
@@ -490,22 +576,21 @@ class SeparableMaskRCNN:
 
         # ============================================================================================
 
-        metrics_dict = {'loss_cls': 0.0, 'loss_loc': 0.0, 'loss_seg': 0.0,
-                        'bbox_iou': 0.0, 'masks_iou': 0.0}
-
-        factor = 1.0 / float(self.num_levels)
-
-        # ============================================================================================
-
         for i in range(self.num_levels):
+
+            # ============================================================================================
 
             iy_true = y_true[:, start:end]
             ibbox_true = bbox_true[:, start:end]
             imasks_true = masks_true[:, start:end]
 
+            # ============================================================================================
+
             iy_true = functional.gather_selected(iy_true, selected_indices[i], same_padding=True, padding_value=-1.0)
             ibbox_true = functional.gather_selected(ibbox_true, selected_indices[i], same_padding=True)
             imasks_true = functional.gather_selected(imasks_true, selected_indices[i], same_padding=True)
+
+            # ============================================================================================
 
             with tf.GradientTape() as tape:
 
@@ -530,16 +615,16 @@ class SeparableMaskRCNN:
                 metrics_dict['loss_cls'] += iloss_cls
                 metrics_dict['loss_loc'] += iloss_loc
 
-            if iloss != 0.0:
+            # ============================================================================================
 
-                # ============================================================================================
+            if iloss != 0.0:
 
                 trainable_vars = self.classification_networks[i].trainable_variables
                 gradients = tape.gradient(iloss, trainable_vars)
 
                 self.classification_networks[i].optimizer.apply_gradients(zip(gradients, trainable_vars))
 
-                # ============================================================================================
+            # ============================================================================================
 
             with tf.GradientTape() as tape:
 
@@ -552,16 +637,16 @@ class SeparableMaskRCNN:
 
                 metrics_dict['loss_seg'] += iloss_seg
 
-            if iloss_seg != 0.0:
+            # ============================================================================================
 
-                # ============================================================================================
+            if iloss_seg != 0.0:
 
                 trainable_vars = self.segmentation_networks[i].trainable_variables
                 gradients = tape.gradient(iloss_seg, trainable_vars)
 
                 self.segmentation_networks[i].optimizer.apply_gradients(zip(gradients, trainable_vars))
 
-                # ============================================================================================
+            # ============================================================================================
 
             start = end
 
@@ -579,11 +664,38 @@ class SeparableMaskRCNN:
 
             # ============================================================================================
 
+            if iloss != 0.0:
+
+                self.cache['metrics'] = metrics_dict
+
+            else:
+
+                metrics_dict = self.cache['metrics']
+
+            # ============================================================================================
+
         return metrics_dict
 
-    def test_step(self, data):
+    def test_step(self, data, update_rpn=False):
+
+        # ============================================================================================
+
+        metrics_dict = {'loss_cls': 0.0, 'loss_loc': 0.0, 'loss_seg': 0.0,
+                        'bbox_iou': 0.0, 'masks_iou': 0.0}
+
+        # ============================================================================================
 
         images, y_true, bbox_true, masks_true = data
+
+        # ============================================================================================
+
+        if update_rpn:
+
+            rpn_metrics_dict = self.test_rpn_step((images, y_true, bbox_true))
+
+            metrics_dict.update(rpn_metrics_dict)
+
+        factor = 1.0 / float(self.num_levels)
 
         # ============================================================================================
 
@@ -593,13 +705,6 @@ class SeparableMaskRCNN:
 
         start = 0
         end = regions[0].shape[1]
-
-        # ============================================================================================
-
-        metrics_dict = {'loss_cls': 0.0, 'loss_loc': 0.0, 'loss_seg': 0.0,
-                        'bbox_iou': 0.0, 'masks_iou': 0.0}
-
-        factor = 1.0 / float(self.num_levels)
 
         # ============================================================================================
 
@@ -885,7 +990,7 @@ class MaskRCNN(Model):
 
         return self.separable_mrcnn.test_step(data)
 
-    def predict_on_batch(self, images, max_output_size, disjoint=True):
+    def predict_on_batch(self, images, max_output_size, disjoint=False):
 
         if disjoint:
 

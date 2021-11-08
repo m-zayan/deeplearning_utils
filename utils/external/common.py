@@ -386,6 +386,7 @@ class Terminal:
             output = output.decode()
 
         if multi_outputs:
+
             output = output.split(multi_output_sep)
 
         return output
