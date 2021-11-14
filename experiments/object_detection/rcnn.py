@@ -1,4 +1,4 @@
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Any
 
 import tensorflow as tf
 
@@ -76,7 +76,7 @@ class BaseRCNN(Model):
 
         # ============================================================================================
 
-        self.cache = {}
+        self.cache: Dict[str, Any] = {'metrics': None}
 
         # ============================================================================================
 
@@ -152,7 +152,7 @@ class BaseRCNN(Model):
 
             self.cache['metrics'] = metrics_dict
 
-        else:
+        elif self.cache['metrics'] is not None:
 
             metrics_dict = self.cache['metrics']
 
@@ -342,7 +342,7 @@ class SeparableMaskRCNN:
 
         # ============================================================================================
 
-        self.cache = {}
+        self.cache: Dict[str, Any] = {'metrics': None}
 
         # ============================================================================================
 
@@ -662,7 +662,7 @@ class SeparableMaskRCNN:
 
                     self.cache['metrics'] = metrics_dict
 
-                else:
+                elif self.cache['metrics'] is not None:
 
                     metrics_dict = self.cache['metrics']
 
@@ -1000,7 +1000,13 @@ class MaskRCNN(Model):
 
     def test_step(self, data):
 
-        return self.separable_mrcnn.test_step(data)
+        if self._mrcnn_status == 'active':
+
+            return self.separable_mrcnn.test_step(data, update_rpn=(self._rpn_status == 'active'))
+
+        else:
+
+            return self.separable_mrcnn.test_rpn_step(data)
 
     def predict_on_batch(self, images, max_output_size, disjoint=False):
 

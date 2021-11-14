@@ -22,30 +22,41 @@ def pad_for_op(super_tensor, tensor, padding_value):
     return tensor
 
 
-def mask_by_zero_var(tensor, axis=-1, threshold=1e-3):
+def mask_by_zero_var(tensor, axis=-1, threshold=1e-3, logical_not=True):
 
     area = tf.math.reduce_variance(tensor, axis=axis)
 
     mask = tf.less_equal(area, threshold)
 
+    if logical_not:
+
+        mask = tf.logical_not(mask)
+
     return mask
 
 
-def mask_by_zero_sum(tensor, axis=-1, threshold=1e-7):
+def mask_by_zero_sum(tensor, axis=-1, threshold=1e-7, logical_not=True):
 
     area = tf.reduce_sum(tensor, axis=axis)
 
-    mask = tf.less_equal(area, threshold)
-    mask = tf.logical_or(mask, tf.less(area, 0.0))
+    mask = tf.less_equal(tf.abs(area), threshold)
+
+    if logical_not:
+
+        mask = tf.logical_not(mask)
 
     return mask
 
 
-def mask_by_max(tensor, return_max=False):
+def mask_by_max(tensor, return_max=False, logical_not=False):
 
     max_values = tf.reduce_max(tensor, axis=-1)
 
     mask = tf.equal(tensor, max_values[..., None])
+
+    if logical_not:
+
+        mask = tf.logical_not(mask)
 
     if return_max:
 
@@ -54,9 +65,13 @@ def mask_by_max(tensor, return_max=False):
     return mask
 
 
-def mask_by_value(tensor, value):
+def mask_by_value(tensor, value, logical_not=False):
 
-    mask = tf.not_equal(tf.squeeze(tensor, axis=-1), value)
+    mask = tf.equal(tf.squeeze(tensor, axis=-1), value)
+
+    if logical_not:
+
+        mask = tf.logical_not(mask)
 
     return mask
 
@@ -71,8 +86,8 @@ def boolean_mask(y_true, y_pred, mask):
 
 def trim_invalid_detections(y_true, y_pred, bbox_true, bbox_pred, return_condition=False):
 
-    condition_0 = mask_by_value(y_true, value=-1.0)
-    condition_1 = mask_by_zero_sum(bbox_pred, axis=-1)
+    condition_0 = mask_by_value(y_true, value=-1.0, logical_not=True)
+    condition_1 = mask_by_zero_sum(bbox_pred, axis=-1, logical_not=True)
 
     condition = tf.logical_and(condition_0, condition_1)
 

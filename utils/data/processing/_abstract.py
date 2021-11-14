@@ -117,6 +117,34 @@ def mask_padding_inverse(mask, padding):
     return mask[padding:h-padding, padding:w-padding]
 
 
+def suppress_mask_overlaps(masks: np.ndarray):
+
+    """ shape: [num_masks, height, width] """
+
+    num_masks = masks.shape[0]
+    mask_size = masks.shape[1:]
+
+    classes = np.arange(num_masks + 1)[:, None, None]
+
+    background = np.zeros((1, *mask_size), dtype=masks.dtype)
+
+    view = np.concatenate([background, masks], axis=0)
+
+    area = view.sum(axis=(1, 2))[:, None, None]
+
+    # min area = high priority
+    priority = area.max() - area + 1
+
+    boolean_mask = (view * priority).argmax(axis=0)
+
+    # zero depth: flag
+    boolean_mask[view.sum(axis=0) == 0] = -1
+
+    boolean_mask = (boolean_mask[None, ...] == classes)
+
+    return boolean_mask[1:]
+
+
 def bbox_to_coords(bbox, standard=False):
 
     x, y, width, height = bbox
