@@ -48,7 +48,7 @@ def test_build_mrcnn(num_test_cases, input_shape, num_classes):
     # mrcnn.set_rpn_status(status='disabled')
     # mrcnn.set_mrcnn_status(status='disabled')
 
-    _ = mrcnn.fit(tf_data, epochs=2)
+    _ = mrcnn.fit(tf_data, validation_data=tf_data, epochs=2)
 
     # loss = mrcnn.train_step(data)
     #

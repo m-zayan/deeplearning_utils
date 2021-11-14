@@ -178,6 +178,9 @@ class BaseRCNN(Model):
 
         regions_score, regions_boxes = self(images, training=False)
 
+        regions_score = tf.concat(regions_score, axis=1)
+        regions_boxes = tf.concat(regions_boxes, axis=1)
+
         # ==================================================================================================
 
         (y_true, regions_score), (bbox_true, regions_boxes) = \
@@ -1006,7 +1009,7 @@ class MaskRCNN(Model):
 
         else:
 
-            return self.separable_mrcnn.test_rpn_step(data)
+            return self.separable_mrcnn.test_rpn_step(data[:3])
 
     def predict_on_batch(self, images, max_output_size, disjoint=False):
 
