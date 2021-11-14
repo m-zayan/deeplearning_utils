@@ -235,6 +235,10 @@ class BaseRCNN(Model):
 
             # ============================================================================================
 
+            iregions_boxes = tf.stop_gradient(iregions_boxes)
+
+            # ============================================================================================
+
             # regions: [batch_size, crop_height, crop_width, num_regions, depth] <---> Proceed with zero paddings
             iregions = self.roi_align[i]([inception[i], iregions_boxes])
 
@@ -567,32 +571,37 @@ class SeparableMaskRCNN:
 
         # ============================================================================================
 
-        regions, selected_indices = self.rpn.predict_regions_per_batch(images)
+        cls_losses = []
+        seg_losses = []
+
+        # ====================================================================================================
+
+        with tf.GradientTape(persistent=True) as tape:
+
+            regions, selected_indices = self.rpn.predict_regions_per_batch(images)
 
         # ============================================================================================
 
-        start = 0
-        end = regions[0].shape[1]
+            start = 0
+            end = regions[0].shape[1]
 
-        # ============================================================================================
+        # ====================================================================================================
 
-        for i in range(self.num_levels):
+            for i in range(self.num_levels):
 
-            # ============================================================================================
-
-            iy_true = y_true[:, start:end]
-            ibbox_true = bbox_true[:, start:end]
-            imasks_true = masks_true[:, start:end]
+                iy_true = y_true[:, start:end]
+                ibbox_true = bbox_true[:, start:end]
+                imasks_true = masks_true[:, start:end]
 
             # ============================================================================================
 
-            iy_true = functional.gather_selected(iy_true, selected_indices[i], same_padding=True, padding_value=-1.0)
-            ibbox_true = functional.gather_selected(ibbox_true, selected_indices[i], same_padding=True)
-            imasks_true = functional.gather_selected(imasks_true, selected_indices[i], same_padding=True)
+                iy_true =\
+                    functional.gather_selected(iy_true, selected_indices[i], same_padding=True, padding_value=-1.0)
+
+                ibbox_true = functional.gather_selected(ibbox_true, selected_indices[i], same_padding=True)
+                imasks_true = functional.gather_selected(imasks_true, selected_indices[i], same_padding=True)
 
             # ============================================================================================
-
-            with tf.GradientTape() as tape:
 
                 y_pred, bbox_pred = self.classification_networks[i](regions[i], training=True)
 
@@ -600,12 +609,12 @@ class SeparableMaskRCNN:
 
                     bbox_pred = functional.select_max_score_boxes(y_pred, bbox_pred)
 
-                # ==================================================================================================
+            # ==================================================================================================
 
                 (iy_true, y_pred), (ibbox_true, bbox_pred), condition =\
                     functional.trim_invalid_detections(iy_true, y_pred, ibbox_true, bbox_pred, return_condition=True)
 
-                # ==================================================================================================
+            # ==================================================================================================
 
                 iloss_cls = functional.sparse_categorical_crossentropy(iy_true, y_pred)
                 iloss_loc = functional.smooth_l1_loss(ibbox_true, bbox_pred)
@@ -616,17 +625,6 @@ class SeparableMaskRCNN:
                 metrics_dict['loss_loc'] += iloss_loc
 
             # ============================================================================================
-
-            if iloss != 0.0:
-
-                trainable_vars = self.classification_networks[i].trainable_variables
-                gradients = tape.gradient(iloss, trainable_vars)
-
-                self.classification_networks[i].optimizer.apply_gradients(zip(gradients, trainable_vars))
-
-            # ============================================================================================
-
-            with tf.GradientTape() as tape:
 
                 masks_pred = self.segmentation_networks[i](regions[i], training=True)
 
@@ -639,40 +637,54 @@ class SeparableMaskRCNN:
 
             # ============================================================================================
 
-            if iloss_seg != 0.0:
+                start = end
+
+                if i + 1 < len(regions):
+
+                    end += regions[i + 1].shape[1]
+
+            # ============================================================================================
+
+                cls_losses.append(iloss)
+                seg_losses.append(iloss_seg)
+
+            # ============================================================================================
+
+                metrics_dict['bbox_iou'] += \
+                    functional.compute_bbox_iou(iy_true, y_pred, ibbox_true, bbox_pred, factor=factor)
+
+                metrics_dict['masks_iou'] += \
+                    functional.compute_masks_iou(iy_true, y_pred, imasks_true, masks_pred, factor=factor)
+
+        # ============================================================================================
+
+                if iloss != 0.0:
+
+                    self.cache['metrics'] = metrics_dict
+
+                else:
+
+                    metrics_dict = self.cache['metrics']
+
+        # ====================================================================================================
+
+        for i in range(self.num_levels):
+
+            if cls_losses[i] != 0.0:
+
+                trainable_vars = self.classification_networks[i].trainable_variables
+                gradients = tape.gradient(cls_losses[i], trainable_vars)
+
+                self.classification_networks[i].optimizer.apply_gradients(zip(gradients, trainable_vars))
+
+            if seg_losses[i] != 0.0:
 
                 trainable_vars = self.segmentation_networks[i].trainable_variables
-                gradients = tape.gradient(iloss_seg, trainable_vars)
+                gradients = tape.gradient(seg_losses[i], trainable_vars)
 
                 self.segmentation_networks[i].optimizer.apply_gradients(zip(gradients, trainable_vars))
 
-            # ============================================================================================
-
-            start = end
-
-            if i + 1 < len(regions):
-
-                end += regions[i + 1].shape[1]
-
-            # ============================================================================================
-
-            metrics_dict['bbox_iou'] += \
-                functional.compute_bbox_iou(iy_true, y_pred, ibbox_true, bbox_pred, factor=factor)
-
-            metrics_dict['masks_iou'] += \
-                functional.compute_masks_iou(iy_true, y_pred, imasks_true, masks_pred, factor=factor)
-
-            # ============================================================================================
-
-            if iloss != 0.0:
-
-                self.cache['metrics'] = metrics_dict
-
-            else:
-
-                metrics_dict = self.cache['metrics']
-
-            # ============================================================================================
+        # ====================================================================================================
 
         return metrics_dict
 

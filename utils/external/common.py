@@ -355,9 +355,10 @@ class Terminal:
                 if kwargs.get('as_root', False):
 
                     if kwargs.get('password', None) is None:
+
                         raise ValueError(f'password=?, is required {signature}')
 
-                    command = f'echo {kwargs["password"]} | sudo -S {command}'
+                    command = f"echo '{kwargs['password']}' | sudo -S {command}"
 
                 output = process.check_output(command, shell=True)
 
